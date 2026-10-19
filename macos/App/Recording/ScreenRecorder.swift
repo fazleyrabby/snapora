@@ -19,6 +19,8 @@ struct RecordingConfig {
     var microphone = false
     /// `AVCaptureDevice.uniqueID`; nil = system default input.
     var microphoneDeviceID: String?
+    /// Snapora's camera bubble, the one Snapora window kept in the video.
+    var cameraWindowID: CGWindowID?
     var codec: Codec = .h264
     var hideDesktopIcons = false
 }
@@ -224,7 +226,7 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
                 // once Snapora's recording controls exist.
                 let iconLevel = Int(CGWindowLevelForKey(.desktopIconWindow))
                 let excluded = content.windows.filter { w in
-                    w.owningApplication?.processID == pid
+                    (w.owningApplication?.processID == pid && w.windowID != config.cameraWindowID)
                         || (w.owningApplication?.bundleIdentifier == "com.apple.finder" && w.windowLayer == iconLevel)
                 }
                 filter = SCContentFilter(display: display, excludingWindows: excluded)
@@ -232,7 +234,8 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
                 // App exclusion also covers windows Snapora opens later
                 // (controls, Quick Access, editors).
                 let own = content.applications.filter { $0.processID == pid }
-                filter = SCContentFilter(display: display, excludingApplications: own, exceptingWindows: [])
+                let camera = content.windows.filter { $0.windowID == config.cameraWindowID }
+                filter = SCContentFilter(display: display, excludingApplications: own, exceptingWindows: camera)
             }
             let scale = Double(filter.pointPixelScale)
             let raw = try selectionToPixels(

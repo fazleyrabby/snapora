@@ -122,6 +122,7 @@ private struct CaptureTab: View {
 private struct RecordingTab: View {
     @ObservedObject var settings: Settings
     @State private var devices = Microphones.available()
+    @State private var cameras = Cameras.available()
 
     var body: some View {
         Form {
@@ -137,12 +138,29 @@ private struct RecordingTab: View {
                 ForEach(devices) { Text($0.name).tag($0.id) }
             }
             .disabled(!settings.recordMicrophone)
+            Toggle("Camera overlay", isOn: $settings.recordCamera)
+            Picker("Camera:", selection: $settings.recordCameraID) {
+                Text(Cameras.systemDefault.map { "System Default (\($0.name))" } ?? "System Default").tag("")
+                ForEach(cameras) { Text($0.name).tag($0.id) }
+            }
+            .disabled(!settings.recordCamera)
+            Picker("Camera shape:", selection: $settings.cameraShape) {
+                ForEach(CameraShape.allCases) { Text($0.label).tag($0) }
+            }
+            .disabled(!settings.recordCamera)
+            Picker("Camera size:", selection: $settings.cameraSize) {
+                ForEach(CameraSize.allCases) { Text($0.label).tag($0) }
+            }
+            .disabled(!settings.recordCamera)
             Toggle("Use HEVC (smaller files)", isOn: $settings.recordHEVC)
             Text("These options are also in the recording bar (⌥⇧5).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .onAppear { devices = Microphones.available() }
+        .onAppear {
+            devices = Microphones.available()
+            cameras = Cameras.available()
+        }
     }
 }
 

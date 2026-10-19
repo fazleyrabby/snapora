@@ -4,6 +4,15 @@ All notable changes to Snapora are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Camera overlay for screen recordings: choose a camera, circle or rounded
+  shape, and size; the draggable bubble is recorded in area and display
+  recordings.
+- Open images and videos with Snapora from Finder (Open With).
+
 ## [0.1.0] - 2026-10-19
 
 First public preview for macOS 14 Sonoma or later on Apple Silicon.

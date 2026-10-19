@@ -197,7 +197,10 @@ final class AppModel: ObservableObject {
             case .window(let id): source = .window(id)
             }
             isCapturing = false
-            await recording.start(config: settings.recordingConfig(source: source), template: settings.fileNameTemplate)
+            let camera = settings.recordCamera
+                ? (deviceID: settings.recordCameraID, shape: settings.cameraShape, size: settings.cameraSize)
+                : nil
+            await recording.start(config: settings.recordingConfig(source: source), template: settings.fileNameTemplate, camera: camera)
         }
     }
 

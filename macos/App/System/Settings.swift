@@ -46,6 +46,12 @@ final class Settings: ObservableObject {
     @Published var recordMicrophone: Bool { didSet { defaults.set(recordMicrophone, forKey: "recordMicrophone") } }
     @Published var recordShowsCursor: Bool { didSet { defaults.set(recordShowsCursor, forKey: "recordShowsCursor") } }
     @Published var recordHEVC: Bool { didSet { defaults.set(recordHEVC, forKey: "recordHEVC") } }
+    @Published var recordCamera: Bool { didSet { defaults.set(recordCamera, forKey: "recordCamera") } }
+    /// Camera `uniqueID`; empty = system default camera.
+    @Published var recordCameraID: String { didSet { defaults.set(recordCameraID, forKey: "recordCameraID") } }
+    @Published var cameraShape: CameraShape { didSet { defaults.set(cameraShape.rawValue, forKey: "cameraShape") } }
+    @Published var cameraSize: CameraSize { didSet { defaults.set(cameraSize.rawValue, forKey: "cameraSize") } }
+
     /// Microphone `uniqueID`; empty = system default input.
     @Published var recordMicrophoneID: String { didSet { defaults.set(recordMicrophoneID, forKey: "recordMicrophoneID") } }
 
@@ -73,6 +79,10 @@ final class Settings: ObservableObject {
         recordShowsCursor = defaults.bool(forKey: "recordShowsCursor")
         recordHEVC = defaults.bool(forKey: "recordHEVC")
         recordMicrophoneID = defaults.string(forKey: "recordMicrophoneID") ?? ""
+        recordCamera = defaults.bool(forKey: "recordCamera")
+        recordCameraID = defaults.string(forKey: "recordCameraID") ?? ""
+        cameraShape = defaults.string(forKey: "cameraShape").flatMap(CameraShape.init(rawValue:)) ?? .circle
+        cameraSize = defaults.string(forKey: "cameraSize").flatMap(CameraSize.init(rawValue:)) ?? .medium
         saveDirectory = defaults.string(forKey: "saveDirectory").map { URL(fileURLWithPath: $0) }
             ?? ImageExporter.defaultDirectory
     }

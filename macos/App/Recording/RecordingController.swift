@@ -18,6 +18,7 @@ final class RecordingController: ObservableObject {
     private var ticker: Timer?
     private var controlPanel: NSPanel?
     private var borderPanel: NSPanel?
+    private var camera: CameraBubble?
     /// The stream died while still starting; stop as soon as start returns.
     private var failedDuringStart = false
     private let log = Logger(subsystem: "com.snapora.app", category: "recording")
@@ -29,10 +30,27 @@ final class RecordingController: ObservableObject {
         return base.appendingPathComponent("Snapora/Recordings", isDirectory: true)
     }
 
-    func start(config: RecordingConfig, template: String) async {
+    /// `camera`: show the camera bubble (area/display recordings only).
+    func start(config: RecordingConfig, template: String, camera cameraOptions: (deviceID: String, shape: CameraShape, size: CameraSize)? = nil) async {
         guard phase == .idle else { return }
         phase = .starting
+        var config = config
         do {
+            // The bubble must exist before the stream starts so it can be
+            // included in the capture.
+            if let cameraOptions, case .region(let region) = config.source {
+                do {
+                    let bubble = try await CameraBubble.show(
+                        deviceID: cameraOptions.deviceID, shape: cameraOptions.shape, size: cameraOptions.size,
+                        in: GlobalSpace.toAppKit(region)
+                    )
+                    camera = bubble
+                    config.cameraWindowID = bubble.windowID
+                    try? await Task.sleep(for: .milliseconds(150)) // let the window server list it
+                } catch {
+                    onError?("Recording without camera: \(error.localizedDescription)")
+                }
+            }
             try FileManager.default.createDirectory(at: Self.recordingsDirectory, withIntermediateDirectories: true)
             let name = captureFileName(template: template, extension: "mp4")
             let url = ImageExporter.uniqueURL(in: Self.recordingsDirectory, fileName: name)
@@ -57,6 +75,8 @@ final class RecordingController: ObservableObject {
             if failedDuringStart { await stop() }
         } catch {
             recorder = nil
+            camera?.close()
+            camera = nil
             phase = .idle
             onError?("Could not start recording: \(error.localizedDescription)")
         }
@@ -113,6 +133,8 @@ final class RecordingController: ObservableObject {
     }
 
     private func teardownUI() {
+        camera?.close()
+        camera = nil
         ticker?.invalidate()
         ticker = nil
         controlPanel?.orderOut(nil)

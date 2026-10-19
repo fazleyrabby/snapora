@@ -443,6 +443,7 @@ private struct CaptureBar: View {
             if state.intent == .recording {
                 Divider().frame(height: 22)
                 MicrophoneMenu(settings: settings)
+                CameraMenu(settings: settings)
                 Toggle(isOn: $settings.recordSystemAudio) {
                     Image(systemName: settings.recordSystemAudio ? "speaker.wave.2.fill" : "speaker.slash")
                 }
@@ -490,6 +491,47 @@ private struct CaptureBar: View {
         case .window: "Click a window, then Record (Return)"
         case .display: "Click a display, then Record (Return)"
         }
+    }
+}
+
+/// Camera overlay on/off, device, shape, and size, as one menu button.
+private struct CameraMenu: View {
+    @ObservedObject var settings: Settings
+
+    var body: some View {
+        Menu {
+            Button {
+                settings.recordCamera = false
+            } label: {
+                if !settings.recordCamera { Image(systemName: "checkmark") }
+                Text("No Camera")
+            }
+            Divider()
+            ForEach(Cameras.available()) { device in
+                Button {
+                    settings.recordCameraID = device.id
+                    settings.recordCamera = true
+                } label: {
+                    if settings.recordCamera && (settings.recordCameraID == device.id
+                        || (settings.recordCameraID.isEmpty && device.id == Cameras.systemDefault?.id)) {
+                        Image(systemName: "checkmark")
+                    }
+                    Text(device.name)
+                }
+            }
+            Divider()
+            Picker("Shape", selection: $settings.cameraShape) {
+                ForEach(CameraShape.allCases) { Text($0.label).tag($0) }
+            }
+            Picker("Size", selection: $settings.cameraSize) {
+                ForEach(CameraSize.allCases) { Text($0.label).tag($0) }
+            }
+        } label: {
+            Image(systemName: settings.recordCamera ? "video.fill" : "video.slash")
+        }
+        .menuIndicator(.visible)
+        .fixedSize()
+        .help(settings.recordCamera ? "Camera overlay on (not shown in window recordings)" : "Camera overlay off")
     }
 }
 

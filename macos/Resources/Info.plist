@@ -55,6 +55,8 @@
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>Snapora shows your camera in a bubble only when you turn on the camera overlay for a screen recording.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Snapora records your microphone only when you turn on microphone audio for a screen recording.</string>
     <key>NSHumanReadableCopyright</key>

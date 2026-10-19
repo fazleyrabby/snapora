@@ -81,6 +81,9 @@ Press **⌥⇧5** (or choose Record in All-in-One), then pick an area, window, o
 display. In the capture bar you can set:
 
 - Microphone (choose the input device from the menu)
+- Camera overlay: a draggable camera bubble (circle or rounded, small /
+  medium / large) that appears in area and display recordings. Window
+  recordings capture only that window, so the bubble isn't recorded there.
 - System audio
 - Cursor visibility
 - 30 or 60 fps
