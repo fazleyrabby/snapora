@@ -398,58 +398,76 @@ private struct CropOverlay: View {
 
 private struct TrimTimelineView: View {
     @ObservedObject var model: VideoEditorModel
+    /// What the current drag moves; decided once, at mouse-down.
+    @State private var dragTarget: DragTarget?
     private let handleWidth: CGFloat = 12
+
+    private enum DragTarget { case start, end, playhead }
 
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width
             let h = geo.size.height
+            // Handles sit inside the view, outside the [0, track] time range.
+            let track = max(1, w - 2 * handleWidth)
             let dur = max(model.duration, 0.001)
-            let xStart = CGFloat(model.trimStart / dur) * w
-            let xEnd = CGFloat(model.trimEnd / dur) * w
-            let xHead = CGFloat(model.currentTime / dur) * w
+            let x = { (t: Double) in handleWidth + CGFloat(t / dur) * track }
+            let xStart = x(model.trimStart)
+            let xEnd = x(model.trimEnd)
+            let xHead = x(model.currentTime)
 
             ZStack(alignment: .topLeading) {
-                thumbnailStrip(width: w, height: h)
+                thumbnailStrip(width: track, height: h)
+                    .offset(x: handleWidth)
                 Rectangle().fill(Color.black.opacity(0.6))
-                    .frame(width: max(0, xStart), height: h)
+                    .frame(width: max(0, xStart - handleWidth), height: h)
+                    .offset(x: handleWidth)
                 Rectangle().fill(Color.black.opacity(0.6))
-                    .frame(width: max(0, w - xEnd), height: h)
+                    .frame(width: max(0, w - handleWidth - xEnd), height: h)
                     .offset(x: xEnd)
                 Rectangle().stroke(Color.yellow, lineWidth: 2)
-                    .frame(width: max(0, xEnd - xStart), height: h)
-                    .offset(x: xStart)
-                    .allowsHitTesting(false)
-
-                // Playhead
+                    .frame(width: max(0, xEnd - xStart + 2 * handleWidth), height: h)
+                    .offset(x: xStart - handleWidth)
+                handle(systemImage: "chevron.compact.left")
+                    .frame(height: h)
+                    .offset(x: xStart - handleWidth)
+                handle(systemImage: "chevron.compact.right")
+                    .frame(height: h)
+                    .offset(x: xEnd)
                 Rectangle().fill(Color.white).frame(width: 2, height: h + 8)
                     .shadow(radius: 1)
                     .offset(x: xHead - 1, y: -4)
-                    .allowsHitTesting(false)
-
-                handle(systemImage: "chevron.compact.right")
-                    .offset(x: xStart - handleWidth)
-                    .highPriorityGesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("timeline"))
-                        .onChanged { v in model.setTrimStart(time(at: v.location.x + handleWidth / 2, width: w)) })
-                handle(systemImage: "chevron.compact.left")
-                    .offset(x: xEnd)
-                    .highPriorityGesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("timeline"))
-                        .onChanged { v in model.setTrimEnd(time(at: v.location.x - handleWidth / 2, width: w)) })
             }
-            .coordinateSpace(name: "timeline")
+            .frame(width: w, height: h, alignment: .topLeading)
             .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("timeline"))
-                .onChanged { v in
-                    if model.isPlaying { model.pause(at: nil) }
-                    model.seek(to: time(at: v.location.x, width: w))
-                })
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { v in
+                        if dragTarget == nil {
+                            dragTarget = target(at: v.startLocation.x, xStart: xStart, xEnd: xEnd)
+                            if dragTarget == .playhead, model.isPlaying { model.pause(at: nil) }
+                        }
+                        let t = Double(min(max(0, v.location.x - handleWidth), track) / track) * model.duration
+                        switch dragTarget {
+                        case .start: model.setTrimStart(t)
+                        case .end: model.setTrimEnd(t)
+                        case .playhead, nil: model.seek(to: t)
+                        }
+                    }
+                    .onEnded { _ in dragTarget = nil }
+            )
         }
         .disabled(!model.isReady)
     }
 
-    private func time(at x: CGFloat, width: CGFloat) -> Double {
-        guard width > 0 else { return 0 }
-        return Double(min(max(0, x), width) / width) * model.duration
+    /// Handles win within a generous grab zone; the closer one wins when the
+    /// trim range is short. Anywhere else scrubs.
+    private func target(at x: CGFloat, xStart: CGFloat, xEnd: CGFloat) -> DragTarget {
+        let grab = handleWidth + 6
+        let dStart = abs(x - (xStart - handleWidth / 2))
+        let dEnd = abs(x - (xEnd + handleWidth / 2))
+        if min(dStart, dEnd) <= grab { return dStart <= dEnd ? .start : .end }
+        return .playhead
     }
 
     private func handle(systemImage: String) -> some View {

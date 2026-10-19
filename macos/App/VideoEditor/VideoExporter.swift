@@ -35,13 +35,13 @@ enum VideoExporter {
         guard let videoTrack = composition.addMutableTrack(
             withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid
         ) else { throw VideoEditError.cannotCreateComposition }
-        try videoTrack.insertTimeRange(edit.trim, of: sourceTrack, at: .zero)
+        try await insert(edit.trim, of: sourceTrack, into: videoTrack)
 
         var audioTracks: [AVMutableCompositionTrack] = []
         for audio in sourceAudio {
             if let t = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) {
                 do {
-                    try t.insertTimeRange(edit.trim, of: audio, at: .zero)
+                    try await insert(edit.trim, of: audio, into: t)
                     audioTracks.append(t)
                 } catch {
                     composition.removeTrack(t)
@@ -195,6 +195,16 @@ enum VideoExporter {
         for name in (try? fm.contentsOfDirectory(atPath: dir.path)) ?? [] where name.hasPrefix(temp.lastPathComponent) {
             try? fm.removeItem(at: dir.appendingPathComponent(name))
         }
+    }
+
+    /// Inserts the part of `trim` that the source track actually covers, at
+    /// the matching offset. Tracks in a recording often start or end slightly
+    /// apart (audio vs. video), and inserting beyond a track's range throws.
+    private static func insert(_ trim: CMTimeRange, of source: AVAssetTrack, into target: AVMutableCompositionTrack) async throws {
+        let available = try await source.load(.timeRange)
+        let range = trim.intersection(available)
+        guard range.duration > .zero else { throw VideoEditError.cannotCreateComposition }
+        try target.insertTimeRange(range, of: source, at: range.start - trim.start)
     }
 
     static func evenSize(_ s: CGSize) -> CGSize {
