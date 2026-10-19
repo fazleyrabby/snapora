@@ -1,0 +1,17 @@
+[package]
+name = "snapora-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "UniFFI bindings exposing snapora-core to the Swift app."
+
+[lib]
+name = "snapora_ffi"
+crate-type = ["staticlib", "cdylib", "lib"]
+
+[dependencies]
+snapora-core.workspace = true
+uniffi.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

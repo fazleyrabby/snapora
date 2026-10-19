@@ -1,0 +1,6 @@
+/target
+/build
+/macos/.build
+/macos/Generated
+/macos/App/Generated
+.DS_Store

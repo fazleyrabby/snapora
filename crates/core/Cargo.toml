@@ -1,0 +1,11 @@
+[package]
+name = "snapora-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Platform-neutral Snapora core: commands, geometry, naming."
+
+[dependencies]
+thiserror.workspace = true
+chrono.workspace = true
+tracing.workspace = true
