@@ -38,7 +38,7 @@ struct MenuContent: View {
 
         Divider()
 
-        RecordingMenu(model: model, recording: model.recording, settings: settings)
+        RecordingMenu(model: model, recording: model.recording)
 
         Button("Reopen Last Capture") { model.reopenLastCapture() }
         Button("Capture History…") { HistoryWindow.show() }
@@ -49,21 +49,8 @@ struct MenuContent: View {
 
         Divider()
 
-        Toggle("Hide Desktop Icons", isOn: $settings.hideDesktopIcons)
-        Toggle("Window Shadow", isOn: $settings.includeWindowShadow)
-        Picker("Timer", selection: $settings.timerSeconds) {
-            ForEach([3, 5, 10], id: \.self) { Text("\($0) seconds").tag($0) }
-        }
-        Picker("After Capture", selection: $settings.afterCapture) {
-            ForEach(AfterCaptureAction.allCases) { Text($0.label).tag($0) }
-        }
-        Picker("After Recording", selection: $settings.afterRecording) {
-            ForEach(AfterRecordingAction.allCases) { Text($0.label).tag($0) }
-        }
-        Picker("Quick Access Auto-Close", selection: $settings.quickAccessAutoCloseSeconds) {
-            Text("Never").tag(0)
-            ForEach([5, 10, 30], id: \.self) { Text("\($0)s").tag($0) }
-        }
+        Button("Settings…") { SettingsWindow.show() }
+            .keyboardShortcut(",")
 
         Divider()
 
@@ -85,28 +72,13 @@ struct MenuContent: View {
 struct RecordingMenu: View {
     let model: AppModel
     @ObservedObject var recording: RecordingController
-    @ObservedObject var settings: Settings
 
     var body: some View {
         switch recording.phase {
         case .idle:
             Button("Record Screen…  ⌥⇧5") { model.perform(.recording) }
                 .disabled(model.isCapturing)
-            Menu("Recording Options") {
-                Picker("Frame Rate", selection: $settings.recordFPS) {
-                    Text("30 fps").tag(30)
-                    Text("60 fps").tag(60)
-                }
-                Toggle("Record System Audio", isOn: $settings.recordSystemAudio)
-                Toggle("Record Microphone", isOn: $settings.recordMicrophone)
-                Picker("Microphone", selection: $settings.recordMicrophoneID) {
-                    Text(Microphones.systemDefault.map { "System Default (\($0.name))" } ?? "System Default").tag("")
-                    ForEach(Microphones.available()) { Text($0.name).tag($0.id) }
-                }
-                .disabled(!settings.recordMicrophone)
-                Toggle("Show Cursor", isOn: $settings.recordShowsCursor)
-                Toggle("HEVC (smaller files)", isOn: $settings.recordHEVC)
-            }
+            Button("Recording Settings…") { SettingsWindow.show() }
         case .starting:
             Text("Starting recording…")
         case .recording, .paused:
