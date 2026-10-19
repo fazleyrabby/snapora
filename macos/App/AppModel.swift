@@ -37,6 +37,9 @@ final class AppModel: ObservableObject {
             self?.quickAccess.show(item, replacing: source)
         }
         registerHotKeys()
+        #if DEBUG
+        ReadmeShots.runIfRequested(quickAccess: quickAccess)
+        #endif
         recording.onFinished = { [weak self] url in self?.handleRecording(url) }
         recording.onError = { [weak self] message in self?.statusMessage = message }
     }

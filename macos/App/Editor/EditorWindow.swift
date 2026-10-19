@@ -9,6 +9,11 @@ enum ImageEditor {
     /// Called after Done saved the edited image: (source, edited file, pixel size).
     static var onDone: ((URL, URL, CGSize) -> Void)?
 
+    #if DEBUG
+    /// Debug-only: pre-populates new editors (README screenshots).
+    static var debugSeed: ((EditorModel) -> Void)?
+    #endif
+
     static func open(url: URL) {
         let key = url.standardizedFileURL
         if let existing = editors[key] {
@@ -52,6 +57,9 @@ final class ImageImageEditorWindowController: NSObject, NSWindowDelegate {
     init(url: URL, image: CGImage, onClosed: @escaping () -> Void) {
         self.model = EditorModel(url: url, source: image)
         self.onClosed = onClosed
+        #if DEBUG
+        ImageEditor.debugSeed?(model)
+        #endif
 
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let backing = NSScreen.main?.backingScaleFactor ?? 2

@@ -21,6 +21,29 @@ Snapora is a native menu-bar app inspired by the CleanShot X workflow. It is
 written in Swift (SwiftUI/AppKit) on top of a platform-neutral Rust core, uses
 Apple's ScreenCaptureKit, Vision, and AVFoundation, and never uploads anything.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/assets/screenshots/image-editor.png" alt="Image editor with arrows, counters, highlight, and redaction" width="900">
+  <br><em>Image editor — arrows, counters, highlight, text, and irreversible redaction</em>
+</p>
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/assets/screenshots/video-editor.png" alt="Video editor with trim, quality, dimensions, and audio options"><br>
+      <em>Video editor — trim, quality, size, audio, MP4 or GIF</em>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/assets/screenshots/quick-access.png" alt="Quick Access card" width="300"><br>
+      <em>Quick Access card after every capture</em>
+      <br><br>
+      <img src="docs/assets/screenshots/settings.png" alt="Settings window"><br>
+      <em>Settings</em>
+    </td>
+  </tr>
+</table>
+
 ## Features
 
 - **Screenshots** — area, window (with shadow or transparent), fullscreen with a
