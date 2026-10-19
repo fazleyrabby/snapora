@@ -93,6 +93,18 @@ final class QuickAccessController {
 
     // MARK: - Showing
 
+    /// Shows `item` in place of the card for `source` (e.g. after editing),
+    /// or as a new card if that one is no longer showing.
+    func show(_ item: CaptureItem, replacing source: URL) {
+        let key = source.standardizedFileURL
+        if let index = model.cards.firstIndex(where: { $0.item.url.standardizedFileURL == key }) {
+            model.cards[index] = QuickAccessCard(item: item)
+            presentPanel(on: nil)
+        } else {
+            show(item)
+        }
+    }
+
     func show(_ item: CaptureItem, on screen: NSScreen? = nil) {
         if let existing = model.cards.firstIndex(where: { $0.id == item.id }) {
             model.cards[existing].elapsed = 0

@@ -6,6 +6,9 @@ import SwiftUI
 enum ImageEditor {
     private static var editors: [URL: ImageImageEditorWindowController] = [:]
 
+    /// Called after Done saved the edited image: (source, edited file, pixel size).
+    static var onDone: ((URL, URL, CGSize) -> Void)?
+
     static func open(url: URL) {
         let key = url.standardizedFileURL
         if let existing = editors[key] {

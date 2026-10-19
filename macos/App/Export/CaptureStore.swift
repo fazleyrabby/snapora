@@ -38,6 +38,14 @@ final class CaptureStore {
         return item
     }
 
+    /// Registers an existing image file in place (no copy), e.g. an edited copy.
+    @discardableResult
+    func addImage(url: URL, pixelSize: CGSize) -> CaptureItem {
+        let item = CaptureItem(id: UUID(), url: url, pixelSize: pixelSize, createdAt: Date())
+        lastCapture = item
+        return item
+    }
+
     /// Registers an existing recording file in place (no copy).
     @discardableResult
     func addVideo(url: URL, pixelSize: CGSize, duration: TimeInterval) -> CaptureItem {

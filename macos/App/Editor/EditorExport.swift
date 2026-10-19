@@ -214,17 +214,22 @@ extension EditorModel {
     }
 
     /// Writes "<name> edited.png" next to the source; the source stays untouched.
-    func saveEdited() {
-        guard let image = renderForExport() else { return }
+    @discardableResult
+    func saveEdited() -> (url: URL, size: CGSize)? {
+        guard let image = renderForExport() else { return nil }
         do {
             let png = try EditorExport.encode(image, type: .png)
             let dir = url.deletingLastPathComponent()
-            let base = url.deletingPathExtension().lastPathComponent
+            var base = url.deletingPathExtension().lastPathComponent
+            // Re-editing an edited image keeps one " edited" suffix.
+            if base.hasSuffix(" edited") { base = String(base.dropLast(" edited".count)) }
             let target = ImageExporter.uniqueURL(in: dir, fileName: "\(base) edited.png")
             try EditorExport.write(png, to: target)
             statusMessage = "Saved \(target.lastPathComponent)"
+            return (target, CGSize(width: image.width, height: image.height))
         } catch {
             errorMessage = error.localizedDescription
+            return nil
         }
     }
 
@@ -255,8 +260,12 @@ extension EditorModel {
         }
     }
 
+    /// Copies the result, saves it as "<name> edited.png", hands it to the app
+    /// (Quick Access, history), and closes.
     func done() {
-        if copyToPasteboard() { onClose?() }
+        guard copyToPasteboard(), let saved = saveEdited() else { return }
+        ImageEditor.onDone?(url, saved.url, saved.size)
+        onClose?()
     }
 
     /// Handles ⌘-shortcuts forwarded from the window. Returns true if consumed.
@@ -268,7 +277,7 @@ extension EditorModel {
         switch key {
         case "z" where !textEditing: shift ? redo() : undo()
         case "c" where !textEditing: copyToPasteboard()
-        case "s": shift ? saveAs() : saveEdited()
+        case "s": if shift { saveAs() } else { saveEdited() }
         case "=", "+": canvas?.zoomIn()
         case "-": canvas?.zoomOut()
         case "0": canvas?.zoomToFit()

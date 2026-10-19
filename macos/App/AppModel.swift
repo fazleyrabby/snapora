@@ -31,6 +31,11 @@ final class AppModel: ObservableObject {
             }
         }
         HistoryWindow.onOpenImage = { ImageEditor.open(url: $0) }
+        ImageEditor.onDone = { [weak self] source, edited, size in
+            let item = CaptureStore.shared.addImage(url: edited, pixelSize: size)
+            HistoryService.shared.recordScreenshot(url: edited, pixelSize: size)
+            self?.quickAccess.show(item, replacing: source)
+        }
         registerHotKeys()
         recording.onFinished = { [weak self] url in self?.handleRecording(url) }
         recording.onError = { [weak self] message in self?.statusMessage = message }
