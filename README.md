@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/fazleyrabby/snapora/releases/latest"><b>Download for macOS</b></a> ·
+  <a href="https://github.com/fazleyrabby/snapora/releases/download/v0.1.0/Snapora-0.1.0.dmg"><b>Download for macOS</b></a> ·
   <a href="docs/USER_GUIDE.md">User Guide</a> ·
   <a href="CHANGELOG.md">Changelog</a>
 </p>
@@ -41,8 +41,8 @@ Apple's ScreenCaptureKit, Vision, and AVFoundation, and never uploads anything.
 
 ## Install
 
-1. Download `Snapora-x.y.z.dmg` from the
-   [latest release](https://github.com/fazleyrabby/snapora/releases/latest).
+1. Download [`Snapora-0.1.0.dmg`](https://github.com/fazleyrabby/snapora/releases/download/v0.1.0/Snapora-0.1.0.dmg)
+   (all versions on the [releases page](https://github.com/fazleyrabby/snapora/releases)).
 2. Open the DMG and drag **Snapora** to **Applications**.
 3. The preview build is not notarized yet. On first launch, right-click
    Snapora.app → **Open** → **Open** (or run
