@@ -87,8 +87,11 @@ enum GIFExporter {
             try Task.checkCancellation()
             guard written == count else { throw VideoEditError.frameGenerationFailed }
             guard CGImageDestinationFinalize(dest) else { throw VideoEditError.writeFailed }
-            try? FileManager.default.removeItem(at: url)
-            try FileManager.default.moveItem(at: temp, to: url)
+            if FileManager.default.fileExists(atPath: url.path) {
+                _ = try FileManager.default.replaceItemAt(url, withItemAt: temp)
+            } else {
+                try FileManager.default.moveItem(at: temp, to: url)
+            }
             progress(1)
             return GIFExportInfo(requestedFPS: requested, effectiveFPS: fps, frameCount: count, outputWidthCap: widthCap)
         } catch {

@@ -35,10 +35,13 @@ private final class VideoEditorWindowController: NSObject, NSWindowDelegate {
         let host = NSHostingController(rootView: VideoEditorView(model: model))
         window = NSWindow(contentViewController: host)
         super.init()
+        model.onFinished = { [weak self] in self?.window.close() }
+        model.onCancel = { [weak self] in self?.window.close() }
         window.title = url.lastPathComponent
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 960, height: 680))
-        window.minSize = NSSize(width: 720, height: 520)
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.setContentSize(NSSize(width: 860, height: 780))
+        window.minSize = NSSize(width: 700, height: 600)
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.center()

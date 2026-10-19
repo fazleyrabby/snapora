@@ -35,16 +35,22 @@ struct VideoEditorView: View {
     @ObservedObject var model: VideoEditorModel
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             preview
-            transport
-            TrimTimelineView(model: model)
-                .frame(height: 56)
-            optionsBar
+            timelineRow
+            HStack(alignment: .top, spacing: 12) {
+                videoPanel
+                audioPanel
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            bottomBar
         }
         .padding(14)
-        .frame(minWidth: 720, minHeight: 520)
+        .frame(minWidth: 700, minHeight: 600)
+        .background(Color(nsColor: NSColor(white: 0.12, alpha: 1)))
+        .preferredColorScheme(.dark)
         .overlay { if model.isExporting { exportOverlay } }
+        .background(hiddenShortcuts)
         .task { await model.load() }
         .alert(
             "Video Editor",
@@ -56,19 +62,55 @@ struct VideoEditorView: View {
         }
     }
 
+    // MARK: Preview
+
     private var preview: some View {
         GeometryReader { geo in
             let rect = Self.fit(model.displaySize, in: geo.size)
-            ZStack {
+            ZStack(alignment: .topTrailing) {
                 Color.black
                 PlayerLayerView(player: model.player)
                 if model.isReady {
                     CropOverlay(model: model, videoRect: rect)
                 }
+                cropToolbar.padding(8)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var cropToolbar: some View {
+        HStack(spacing: 4) {
+            if model.cropMode || model.crop != nil {
+                Menu {
+                    ForEach(CropAspect.allCases) { a in
+                        Button {
+                            model.setAspect(a)
+                        } label: {
+                            if model.aspect == a { Label(a.title, systemImage: "checkmark") } else { Text(a.title) }
+                        }
+                    }
+                    if model.crop != nil {
+                        Divider()
+                        Button("Clear Crop") { model.clearCrop() }
+                    }
+                } label: {
+                    Text(model.aspect.title).font(.caption)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Crop aspect ratio")
+            }
+            Toggle(isOn: Binding(get: { model.cropMode }, set: { model.setCropMode($0) })) {
+                Image(systemName: "crop")
+            }
+            .toggleStyle(.button)
+            .help("Crop")
+        }
+        .padding(4)
+        .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
+        .disabled(!model.isReady || model.isExporting)
     }
 
     /// Aspect-fit rect, matching AVPlayerView's .resizeAspect.
@@ -79,73 +121,160 @@ struct VideoEditorView: View {
         return CGRect(x: (container.width - w) / 2, y: (container.height - h) / 2, width: w, height: h)
     }
 
-    private var transport: some View {
-        HStack(spacing: 12) {
-            Button { model.step(frames: -1) } label: { Image(systemName: "backward.frame.fill") }
-                .keyboardShortcut(.leftArrow, modifiers: [])
-                .help("Previous frame (←)")
-            Button { model.togglePlay() } label: {
-                Image(systemName: model.isPlaying ? "pause.fill" : "play.fill").frame(width: 18)
+    // MARK: Transport + timeline
+
+    private var timelineRow: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 12) {
+                Button { model.togglePlay() } label: {
+                    Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .frame(width: 56, height: 56)
+                        .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .help("Play / pause (Space)")
+                TrimTimelineView(model: model)
+                    .frame(height: 56)
+                    .padding(.horizontal, 12)
             }
-            .keyboardShortcut(.space, modifiers: [])
-            .help("Play / pause (Space)")
-            Button { model.step(frames: 1) } label: { Image(systemName: "forward.frame.fill") }
-                .keyboardShortcut(.rightArrow, modifiers: [])
-                .help("Next frame (→)")
-            Text("\(format(model.currentTime)) / \(format(model.duration))")
-                .monospacedDigit().foregroundStyle(.secondary)
-            Spacer()
-            Text("Trim \(format(model.trimStart)) – \(format(model.trimEnd))  (\(format(model.trimEnd - model.trimStart)))")
-                .monospacedDigit().foregroundStyle(.secondary)
+            HStack {
+                Text("\(format(model.currentTime)) / \(format(model.duration))")
+                Spacer()
+                Text("Trim \(format(model.trimStart)) – \(format(model.trimEnd))  (\(format(model.trimmedDuration)))")
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .padding(.leading, 68)
         }
-        .buttonStyle(.borderless)
         .disabled(!model.isReady)
     }
 
-    private var optionsBar: some View {
-        HStack(spacing: 12) {
-            Toggle(isOn: Binding(get: { model.cropMode }, set: { model.setCropMode($0) })) {
-                Label("Crop", systemImage: "crop")
-            }
-            .toggleStyle(.button)
-            if model.cropMode {
-                Picker("Aspect", selection: Binding(get: { model.aspect }, set: { model.setAspect($0) })) {
-                    ForEach(CropAspect.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 230)
-            }
-            if model.crop != nil {
-                Button("Clear Crop") { model.clearCrop() }
-            }
-            Toggle(isOn: $model.muteAudio) { Label("Mute", systemImage: "speaker.slash") }
-                .toggleStyle(.button)
-                .disabled(!model.hasAudio)
-            Spacer()
-            Menu {
-                Picker("Frame rate", selection: $model.gifFPS) {
-                    ForEach([10, 15, 20, 24], id: \.self) { Text("\($0) fps").tag($0) }
-                }
-                Picker("Max width", selection: $model.gifMaxWidth) {
-                    Text("480 px").tag(480)
-                    Text("640 px").tag(640)
-                    Text("800 px").tag(800)
-                    Text("Original (max 1280 px)").tag(0)
-                }
-            } label: {
-                Text("GIF: \(model.gifFPS) fps, \(model.gifMaxWidth == 0 ? "original" : "\(model.gifMaxWidth) px")")
-            }
-            .fixedSize()
-            Button("Export GIF") { model.exportGIF() }
-            Button("Export MP4") { model.exportMP4() }
-                .keyboardShortcut("e", modifiers: .command)
-                .buttonStyle(.borderedProminent)
+    /// Invisible buttons that carry the Space / arrow shortcuts.
+    private var hiddenShortcuts: some View {
+        ZStack {
+            Button("") { model.togglePlay() }.keyboardShortcut(.space, modifiers: [])
+            Button("") { model.step(frames: -1) }.keyboardShortcut(.leftArrow, modifiers: [])
+            Button("") { model.step(frames: 1) }.keyboardShortcut(.rightArrow, modifiers: [])
         }
-        .disabled(!model.isReady || model.isExporting)
+        .opacity(0).allowsHitTesting(false).accessibilityHidden(true)
+    }
+
+    // MARK: Panels
+
+    private func panel<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.08)))
+    }
+
+    private var videoPanel: some View {
+        panel {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Format:").frame(width: 100, alignment: .leading)
+                    Picker("", selection: $model.format) {
+                        ForEach(VideoEditorModel.Format.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 140)
+                }
+                if model.format == .mp4 {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Video quality: ").foregroundStyle(.secondary)
+                            + Text(model.quality.title).bold()
+                        Slider(
+                            value: Binding(get: { Double(model.quality.rawValue) },
+                                           set: { model.quality = VideoQuality(rawValue: Int($0.rounded())) ?? .high }),
+                            in: 0...3, step: 1
+                        )
+                        HStack {
+                            Text("Low"); Spacer(); Text("Medium"); Spacer(); Text("High"); Spacer(); Text("Ultra")
+                        }
+                        .font(.caption2).foregroundStyle(.secondary)
+                    }
+                } else {
+                    HStack {
+                        Text("Frame rate:").frame(width: 100, alignment: .leading)
+                        Picker("", selection: $model.gifFPS) {
+                            ForEach([10, 15, 20, 24], id: \.self) { Text("\($0) fps").tag($0) }
+                        }
+                        .labelsHidden().frame(width: 110)
+                    }
+                }
+                HStack {
+                    Text("Dimensions:").frame(width: 100, alignment: .leading)
+                    Picker("", selection: Binding(get: { model.dimensionMode }, set: { model.setDimensionMode($0) })) {
+                        ForEach(VideoEditorModel.DimensionMode.allCases) { Text(model.dimensionTitle($0)).tag($0) }
+                    }
+                    .labelsHidden()
+                }
+                HStack(spacing: 6) {
+                    Text("Width:").foregroundStyle(.secondary)
+                    TextField("", value: Binding(get: { model.outputWidth }, set: { model.outputWidth = $0 }), format: .number.grouping(.never))
+                        .frame(width: 64)
+                    Text("Height:").foregroundStyle(.secondary).padding(.leading, 6)
+                    TextField("", value: Binding(get: { model.outputHeight }, set: { model.outputHeight = $0 }), format: .number.grouping(.never))
+                        .frame(width: 64)
+                }
+                .textFieldStyle(.roundedBorder)
+                .disabled(model.dimensionMode != .custom)
+                .padding(.leading, 100)
+            }
+        }
+    }
+
+    private var audioPanel: some View {
+        panel {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Audio:")
+                Picker("", selection: $model.audioMode) {
+                    ForEach(AudioMode.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.radioGroup).labelsHidden()
+                VStack(alignment: .leading, spacing: 2) {
+                    Slider(value: $model.volume, in: 0...2)
+                    HStack {
+                        Text("0%"); Spacer()
+                        Text("\(Int((model.volume * 100).rounded()))%").foregroundStyle(.primary)
+                        Spacer(); Text("200%")
+                    }
+                    .font(.caption2).foregroundStyle(.secondary)
+                }
+                .disabled(model.audioMode != .volume)
+                .padding(.leading, 20)
+                if !model.hasAudio && model.isReady {
+                    Text("No audio track").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .disabled(!model.hasAudio)
+        }
+    }
+
+    // MARK: Bottom bar
+
+    private var bottomBar: some View {
+        HStack(spacing: 14) {
+            Button("Cancel") {
+                if model.isExporting { model.cancelExport() } else { model.onCancel?() }
+            }
+            .keyboardShortcut(.cancelAction)
+            Text("Estimated file size: \(model.estimatedSizeText)")
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+            Spacer()
+            Button("Convert") { model.convert() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
+                .disabled(!model.isReady || model.isExporting)
+        }
     }
 
     private var exportOverlay: some View {
         ZStack {
-            Color.black.opacity(0.4)
+            Color.black.opacity(0.5)
             VStack(spacing: 12) {
                 Text(model.exportLabel).font(.headline)
                 ProgressView(value: model.exportProgress ?? 0).frame(width: 260)
