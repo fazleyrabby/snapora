@@ -44,9 +44,17 @@ Apple's ScreenCaptureKit, Vision, and AVFoundation, and never uploads anything.
 1. Download [`Snapora-0.1.0.dmg`](https://github.com/fazleyrabby/snapora/releases/download/v0.1.0/Snapora-0.1.0.dmg)
    (all versions on the [releases page](https://github.com/fazleyrabby/snapora/releases)).
 2. Open the DMG and drag **Snapora** to **Applications**.
-3. The preview build is not notarized yet. On first launch, right-click
-   Snapora.app → **Open** → **Open** (or run
-   `xattr -dr com.apple.quarantine /Applications/Snapora.app`).
+3. The preview build is not notarized yet, so macOS says it *could not verify
+   "Snapora"*. Click **Done** (not Move to Trash), then open
+   **System Settings → Privacy & Security**, scroll down, and click
+   **Open Anyway** next to the Snapora message. Or run:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Snapora.app
+   ```
+
+   The app isn't damaged — macOS shows this for every app that isn't
+   notarized by Apple.
 4. Take a capture with **⌥⇧3**, allow **Screen Recording** in System Settings,
    then quit and reopen Snapora.
 

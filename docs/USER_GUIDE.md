@@ -133,9 +133,10 @@ tccutil reset ScreenCapture com.snapora.app
 
 Then capture once, enable Snapora in System Settings, and relaunch Snapora.
 
-**"Snapora can't be opened because it is from an unidentified developer."**
-Release builds are not notarized yet. Right-click Snapora.app → **Open** →
-**Open**, or run:
+**"Apple could not verify "Snapora" is free of malware…"** Release builds are
+not notarized yet. Click **Done**, open **System Settings → Privacy &
+Security**, scroll down, and click **Open Anyway** next to the Snapora message.
+Or run:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Snapora.app
