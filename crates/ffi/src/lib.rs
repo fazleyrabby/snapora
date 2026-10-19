@@ -6,10 +6,12 @@ use std::sync::Once;
 mod editor;
 mod history;
 mod recording;
+mod stitch;
 
 pub use editor::*;
 pub use history::*;
 pub use recording::*;
+pub use stitch::*;
 
 use snapora_core::{geometry, naming};
 
@@ -25,6 +27,8 @@ pub enum SnaporaError {
     History { message: String },
     #[error("{message}")]
     Recording { message: String },
+    #[error("{message}")]
+    Stitch { message: String },
 }
 
 impl From<snapora_core::CoreError> for SnaporaError {

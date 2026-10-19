@@ -25,7 +25,7 @@ struct EditorRootView: View {
         HStack {
             Text(model.statusMessage ?? "")
             Spacer()
-            let size = model.exportTransform.outputSize
+            let size = model.exportLayout.canvasSize
             Text("\(Int(size.width)) × \(Int(size.height)) px  ·  \(model.zoomPercent)%")
         }
         .font(.caption)
@@ -37,6 +37,7 @@ struct EditorRootView: View {
 
 private struct ToolRow: View {
     @ObservedObject var model: EditorModel
+    @State private var showBackground = false
 
     var body: some View {
         HStack(spacing: 4) {
@@ -64,6 +65,14 @@ private struct ToolRow: View {
             if model.hasCrop {
                 Button("Reset Crop") { model.resetCrop() }
             }
+            Divider().frame(height: 18)
+            Button { showBackground.toggle() } label: {
+                Image(systemName: "photo.artframe")
+                    .frame(width: 26, height: 22)
+                    .background(model.background.enabled ? Color.accentColor.opacity(0.28) : .clear, in: RoundedRectangle(cornerRadius: 5))
+            }
+            .help("Background")
+            .popover(isPresented: $showBackground, arrowEdge: .bottom) { BackgroundPanel(model: model) }
             Spacer()
             Button { model.canvas?.zoomOut() } label: { Image(systemName: "minus.magnifyingglass") }.help("Zoom out (⌘-)")
             Button { model.canvas?.zoomToFit() } label: { Image(systemName: "arrow.up.left.and.down.right.magnifyingglass") }.help("Fit (⌘0)")

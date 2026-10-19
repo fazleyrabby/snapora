@@ -3,7 +3,7 @@ import AVFoundation
 import OSLog
 
 enum CaptureAction {
-    case fullscreen, region, window, previousArea, allInOne, timedFullscreen, recording, ocr
+    case fullscreen, region, window, previousArea, allInOne, timedFullscreen, recording, ocr, scrolling
 }
 
 @MainActor
@@ -98,9 +98,13 @@ final class AppModel: ObservableObject {
                 try await recognizeText()
                 return
             }
+            if action == .scrolling {
+                try await scrollingCapture()
+                return
+            }
             let image: CGImage
             switch action {
-            case .recording, .ocr:
+            case .recording, .ocr, .scrolling:
                 return
             case .fullscreen, .timedFullscreen:
                 image = try await ScreenCapture.captureMainDisplay(options: options)
@@ -164,6 +168,15 @@ final class AppModel: ObservableObject {
         }
         isCapturing = false
         await recording.start(config: settings.recordingConfig(source: source), template: settings.fileNameTemplate)
+    }
+
+    private func scrollingCapture() async throws {
+        guard case .region(let rect) = await SelectionOverlay.present(mode: .region) else { return }
+        guard let result = try await ScrollingCapture.run(region: rect, options: settings.captureOptions) else { return }
+        try handleCapture(result.image)
+        if result.uncertainJoins > 0 {
+            statusMessage = "Scrolling capture saved; \(result.uncertainJoins) join(s) may be inaccurate — please check."
+        }
     }
 
     private func recognizeText() async throws {

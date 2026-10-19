@@ -1,4 +1,4 @@
-.PHONY: app debug run test clean
+.PHONY: app debug run test clean dmg icon
 
 app:
 	scripts/build-app.sh release
@@ -15,3 +15,9 @@ test:
 clean:
 	cargo clean
 	rm -rf build macos/.build macos/Generated macos/App/Generated
+
+dmg:
+	scripts/package.sh
+
+icon:
+	swift scripts/make-icon.swift build/AppIcon.iconset && iconutil -c icns build/AppIcon.iconset -o macos/Resources/AppIcon.icns

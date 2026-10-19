@@ -45,17 +45,22 @@ struct ViewMapping: Equatable {
     var origin: CGPoint
     /// View points per output pixel.
     var scale: CGFloat
+    /// Offset (in output pixels) of the edited image inside the styled canvas
+    /// (background padding/alignment). `origin` is the canvas's top-left;
+    /// `toView`/`toOutput` map image-output pixels, so annotations keep image
+    /// coordinates regardless of padding.
+    var contentOffset: CGPoint = .zero
 
     func toView(_ p: CGPoint) -> CGPoint {
-        CGPoint(x: origin.x + p.x * scale, y: origin.y + p.y * scale)
+        CGPoint(x: origin.x + (p.x + contentOffset.x) * scale, y: origin.y + (p.y + contentOffset.y) * scale)
     }
 
     func toOutput(_ p: CGPoint) -> CGPoint {
-        CGPoint(x: (p.x - origin.x) / scale, y: (p.y - origin.y) / scale)
+        CGPoint(x: (p.x - origin.x) / scale - contentOffset.x, y: (p.y - origin.y) / scale - contentOffset.y)
     }
 
     func toView(_ r: CGRect) -> CGRect {
-        CGRect(x: origin.x + r.minX * scale, y: origin.y + r.minY * scale,
+        CGRect(x: origin.x + (r.minX + contentOffset.x) * scale, y: origin.y + (r.minY + contentOffset.y) * scale,
                width: r.width * scale, height: r.height * scale)
     }
 
@@ -118,6 +123,11 @@ enum EditorGeometrySelfCheck {
         let m = ViewMapping(origin: CGPoint(x: 10, y: 20), scale: s)
         assert(m.toView(CGPoint(x: 200, y: 100)) == CGPoint(x: 110, y: 70))
         assert(m.toOutput(CGPoint(x: 110, y: 70)) == CGPoint(x: 200, y: 100))
+        // Background padding: image (0,0) sits at canvas (64,64).
+        var padded = m
+        padded.contentOffset = CGPoint(x: 64, y: 64)
+        assert(padded.toView(CGPoint.zero) == CGPoint(x: 10 + 32, y: 20 + 32))
+        assert(padded.toOutput(padded.toView(CGPoint(x: 7, y: 9))) == CGPoint(x: 7, y: 9))
     }
 }
 #endif

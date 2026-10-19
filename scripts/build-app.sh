@@ -21,6 +21,7 @@ APP="$ROOT/build/$CONFIG/Snapora.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Snapora"
+cp "$ROOT/macos/Resources/AppIcon.icns" "$APP/Contents/Resources/"
 sed "s/__VERSION__/$VERSION/g" "$ROOT/macos/Resources/Info.plist" > "$APP/Contents/Info.plist"
 
 codesign --force --options runtime --timestamp=none \

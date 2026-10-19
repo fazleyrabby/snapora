@@ -20,6 +20,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
     private var pan: CGPoint = .zero
     private var isFit = true
     private var transform: SourceTransform
+    private var bgLayout: BackgroundLayout
 
     // Interaction state.
     private enum Drag {
@@ -42,6 +43,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
     init(model: EditorModel) {
         self.model = model
         self.transform = model.displayTransform
+        self.bgLayout = model.displayLayout
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         model.canvas = self
         model.objectWillChange
@@ -65,7 +67,8 @@ final class CanvasView: NSView, NSTextFieldDelegate {
 
     private var mapping: ViewMapping {
         let s = scale
-        return ViewMapping(origin: ViewMapping.origin(outputSize: transform.outputSize, viewport: bounds.size, scale: s, pan: pan), scale: s)
+        return ViewMapping(origin: ViewMapping.origin(outputSize: bgLayout.canvasSize, viewport: bounds.size, scale: s, pan: pan),
+                           scale: s, contentOffset: bgLayout.contentOrigin)
     }
 
     private func toSource(_ viewPoint: CGPoint) -> CGPoint {
@@ -84,6 +87,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
 
     private func modelChanged() {
         transform = model.displayTransform
+        bgLayout = model.displayLayout
         if isFit { applyFit() }
         updateZoomPercent()
         window?.invalidateCursorRects(for: self)
@@ -103,7 +107,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
     }
 
     private func applyFit() {
-        zoom = ViewMapping.fitZoom(outputSize: transform.outputSize, viewport: bounds.size, backingScale: backing)
+        zoom = ViewMapping.fitZoom(outputSize: bgLayout.canvasSize, viewport: bounds.size, backingScale: backing)
         pan = .zero
     }
 
@@ -125,10 +129,10 @@ final class CanvasView: NSView, NSTextFieldDelegate {
 
     private func setZoom(_ newZoom: CGFloat, anchor: CGPoint) {
         isFit = false
-        let anchorOut = mapping.toOutput(anchor)
+        let anchorOut = CGPoint(x: mapping.toOutput(anchor).x + bgLayout.contentOrigin.x, y: mapping.toOutput(anchor).y + bgLayout.contentOrigin.y)
         zoom = min(max(newZoom, 0.05), 32)
         let s = scale
-        let base = ViewMapping.origin(outputSize: transform.outputSize, viewport: bounds.size, scale: s, pan: .zero)
+        let base = ViewMapping.origin(outputSize: bgLayout.canvasSize, viewport: bounds.size, scale: s, pan: .zero)
         pan = CGPoint(x: anchor.x - anchorOut.x * s - base.x, y: anchor.y - anchorOut.y * s - base.y)
         clampPan()
         updateZoomPercent()
@@ -137,8 +141,8 @@ final class CanvasView: NSView, NSTextFieldDelegate {
 
     private func clampPan() {
         let s = scale
-        let limX = (transform.outputSize.width * s + bounds.width) / 2 - 60
-        let limY = (transform.outputSize.height * s + bounds.height) / 2 - 60
+        let limX = (bgLayout.canvasSize.width * s + bounds.width) / 2 - 60
+        let limY = (bgLayout.canvasSize.height * s + bounds.height) / 2 - 60
         pan.x = min(max(pan.x, -max(limX, 0)), max(limX, 0))
         pan.y = min(max(pan.y, -max(limY, 0)), max(limY, 0))
     }
@@ -195,7 +199,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         bounds.fill()
 
         let m = mapping
-        let out = CGRect(origin: .zero, size: transform.outputSize)
+        let out = CGRect(origin: .zero, size: bgLayout.canvasSize)
 
         ctx.saveGState()
         ctx.translateBy(x: m.origin.x, y: m.origin.y)
@@ -204,8 +208,17 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         ctx.setFillColor(CGColor(gray: 0.92, alpha: 1))
         ctx.fill(out)
         ctx.interpolationQuality = m.scale * backing >= 1 ? .none : .high
-        AnnotationRenderer.render(in: ctx, source: model.source, annotations: displayedAnnotations,
-                                  transform: transform, cache: model.effects)
+        let annotations = displayedAnnotations
+        if model.displayBackground.enabled {
+            BackgroundRenderer.draw(in: ctx, style: model.displayBackground, layout: bgLayout,
+                                    contentSize: transform.outputSize) { c in
+                AnnotationRenderer.render(in: c, source: model.source, annotations: annotations,
+                                          transform: transform, cache: model.effects)
+            }
+        } else {
+            AnnotationRenderer.render(in: ctx, source: model.source, annotations: annotations,
+                                      transform: transform, cache: model.effects)
+        }
         ctx.restoreGState()
 
         drawOverlays(ctx)

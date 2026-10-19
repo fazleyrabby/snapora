@@ -19,7 +19,43 @@ enum EditorExportError: LocalizedError {
 /// Flattens the document into a plain bitmap. Annotations (including
 /// redact/blur/pixelate) are baked into pixels; no layers or metadata survive.
 enum EditorExport {
-    static func render(document: EditorDocument, source: CGImage, effects: EffectCache, opaqueWhite: Bool = false) throws -> CGImage {
+    /// Flattens annotations, then (if `background` is enabled) composes the
+    /// styled canvas around the flattened image. The background never touches
+    /// the annotation/redaction pass.
+    static func render(document: EditorDocument, source: CGImage, effects: EffectCache, opaqueWhite: Bool = false,
+                       background: BackgroundStyle? = nil) throws -> CGImage {
+        guard let background, background.enabled else {
+            return try renderFlat(document: document, source: source, effects: effects, opaqueWhite: opaqueWhite)
+        }
+        let flat = try renderFlat(document: document, source: source, effects: effects, opaqueWhite: false)
+        let size = CGSize(width: flat.width, height: flat.height)
+        let layout = background.layout(contentSize: size)
+        let w = max(Int(layout.canvasSize.width), 1)
+        let h = max(Int(layout.canvasSize.height), 1)
+        let space = flat.colorSpace.flatMap { $0.model == .rgb ? $0 : nil } ?? CGColorSpace(name: CGColorSpace.sRGB)!
+        let alpha: CGImageAlphaInfo = opaqueWhite ? .noneSkipFirst : .premultipliedFirst
+        let info = alpha.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: space, bitmapInfo: info)
+            ?? CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                         space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: info)
+        else { throw EditorExportError.renderFailed }
+        ctx.translateBy(x: 0, y: CGFloat(h))
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.interpolationQuality = .high
+        if opaqueWhite {
+            ctx.setFillColor(CGColor(gray: 1, alpha: 1))
+            ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        }
+        BackgroundRenderer.draw(in: ctx, style: background, layout: layout, contentSize: size) { c in
+            c.interpolationQuality = .none
+            BackgroundRenderer.drawImage(c, flat, in: CGRect(origin: .zero, size: size))
+        }
+        guard let image = ctx.makeImage() else { throw EditorExportError.renderFailed }
+        return image
+    }
+
+    private static func renderFlat(document: EditorDocument, source: CGImage, effects: EffectCache, opaqueWhite: Bool) throws -> CGImage {
         let transform = SourceTransform(sourceSize: CGSize(width: source.width, height: source.height),
                                         crop: document.crop()?.cgRect,
                                         quarterTurns: Int(document.rotation()))
@@ -128,7 +164,8 @@ extension EditorModel {
     private func renderForExport(opaqueWhite: Bool = false) -> CGImage? {
         flushStyle()
         do {
-            return try EditorExport.render(document: document, source: source, effects: effects, opaqueWhite: opaqueWhite)
+            return try EditorExport.render(document: document, source: source, effects: effects, opaqueWhite: opaqueWhite,
+                                       background: background)
         } catch {
             errorMessage = error.localizedDescription
             return nil

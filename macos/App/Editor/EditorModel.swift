@@ -93,6 +93,10 @@ final class EditorModel: ObservableObject {
     @Published var zoomPercent = 100
     @Published var statusMessage: String?
     @Published var errorMessage: String?
+    /// Background styling; the last-used value is remembered across editors.
+    @Published var background: BackgroundStyle = BackgroundStyle.loadSaved() {
+        didSet { background.save() }
+    }
 
     // Style state shown in the toolbar.
     @Published var strokeColor: NSColor = EditorTool.arrow.defaultColor { didSet { styleDidChange() } }
@@ -134,6 +138,18 @@ final class EditorModel: ObservableObject {
     var exportTransform: SourceTransform {
         SourceTransform(sourceSize: sourceSize, crop: document.crop()?.cgRect, quarterTurns: Int(document.rotation()))
     }
+
+    /// The crop tool shows the plain uncropped image, without background.
+    var displayBackground: BackgroundStyle {
+        var b = background
+        if tool == .crop { b.enabled = false }
+        return b
+    }
+
+    var displayLayout: BackgroundLayout { displayBackground.layout(contentSize: displayTransform.outputSize) }
+
+    /// Size and image placement of the exported (styled) canvas.
+    var exportLayout: BackgroundLayout { background.layout(contentSize: exportTransform.outputSize) }
 
     var currentStyle: AnnotationStyle {
         let c = strokeColor.usingColorSpace(.sRGB) ?? strokeColor
