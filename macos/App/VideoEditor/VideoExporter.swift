@@ -105,8 +105,15 @@ enum VideoExporter {
                 session.exportAsynchronously { c.resume() }
             }
             poller.cancel()
-        } onCancel: {
-            session.cancelExport()
+        } onCancel: { [box = UncheckedSession(session)] in
+            box.session.cancelExport()
         }
     }
+}
+
+/// `cancelExport()` is thread-safe; the box only satisfies the `@Sendable`
+/// cancellation handler.
+private struct UncheckedSession: @unchecked Sendable {
+    let session: AVAssetExportSession
+    init(_ session: AVAssetExportSession) { self.session = session }
 }
