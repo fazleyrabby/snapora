@@ -5,7 +5,7 @@ members = ["crates/core", "crates/editor", "crates/history", "crates/ffi", "crat
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-license = "UNLICENSED"
+license = "MIT"
 
 [workspace.dependencies]
 snapora-core = { path = "crates/core" }

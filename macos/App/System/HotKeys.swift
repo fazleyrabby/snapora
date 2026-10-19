@@ -66,7 +66,7 @@ final class HotKeyCenter {
 extension HotKeyCenter.Shortcut {
     private static let optShift = UInt32(optionKey | shiftKey)
 
-    // Defaults avoid the system's ⌘⇧3/4/5 (spec §11).
+    // Defaults avoid the system's ⌘⇧3/4/5 screenshot shortcuts.
     static let allInOne = Self(keyCode: UInt32(kVK_ANSI_1), modifiers: optShift, display: "⌥⇧1")
     static let window = Self(keyCode: UInt32(kVK_ANSI_2), modifiers: optShift, display: "⌥⇧2")
     static let fullscreen = Self(keyCode: UInt32(kVK_ANSI_3), modifiers: optShift, display: "⌥⇧3")
