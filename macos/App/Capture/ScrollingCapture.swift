@@ -21,7 +21,7 @@ final class ScrollingCapture: ObservableObject {
     private var panels: [NSPanel] = []
     private var continuation: CheckedContinuation<Result?, Error>?
 
-    static let maxRows: UInt32 = 30_000
+    nonisolated static let maxRows: UInt32 = 30_000
     static let interval: Duration = .milliseconds(250)
 
     private init(region: CGRect, options: CaptureOptions) {

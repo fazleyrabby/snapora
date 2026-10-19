@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import Foundation
 
 /// Renders a `VideoEdit` to an MP4. The source is never modified; trim, mute
