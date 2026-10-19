@@ -34,12 +34,21 @@ struct MenuContent: View {
         }
         .disabled(model.isCapturing)
 
+        Button("Reopen Last Capture") { model.reopenLastCapture() }
+
         Divider()
 
         Toggle("Hide Desktop Icons", isOn: $settings.hideDesktopIcons)
         Toggle("Window Shadow", isOn: $settings.includeWindowShadow)
         Picker("Timer", selection: $settings.timerSeconds) {
             ForEach([3, 5, 10], id: \.self) { Text("\($0) seconds").tag($0) }
+        }
+        Picker("After Capture", selection: $settings.afterCapture) {
+            ForEach(AfterCaptureAction.allCases) { Text($0.label).tag($0) }
+        }
+        Picker("Quick Access Auto-Close", selection: $settings.quickAccessAutoCloseSeconds) {
+            Text("Never").tag(0)
+            ForEach([5, 10, 30], id: \.self) { Text("\($0)s").tag($0) }
         }
 
         Divider()

@@ -766,6 +766,9 @@ name = "snapora-ffi"
 version = "0.1.0"
 dependencies = [
  "snapora-core",
+ "snapora-editor",
+ "snapora-history",
+ "tempfile",
  "thiserror",
  "tracing",
  "tracing-subscriber",

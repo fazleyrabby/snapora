@@ -6,6 +6,7 @@
 pub mod error;
 pub mod geometry;
 pub mod naming;
+pub mod recording;
 
 pub use error::CoreError;
 

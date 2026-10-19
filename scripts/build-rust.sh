@@ -7,6 +7,9 @@ CONFIG="${1:-release}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Match the app's minimum macOS so C deps (bundled sqlite) link cleanly.
+export MACOSX_DEPLOYMENT_TARGET=14.0
+
 PROFILE_FLAG=()
 [[ "$CONFIG" == "release" ]] && PROFILE_FLAG=(--release)
 

@@ -3,6 +3,14 @@
 
 use std::sync::Once;
 
+mod editor;
+mod history;
+mod recording;
+
+pub use editor::*;
+pub use history::*;
+pub use recording::*;
+
 use snapora_core::{geometry, naming};
 
 uniffi::setup_scaffolding!();
@@ -11,6 +19,12 @@ uniffi::setup_scaffolding!();
 pub enum SnaporaError {
     #[error("{message}")]
     Geometry { message: String },
+    #[error("{message}")]
+    Editor { message: String },
+    #[error("{message}")]
+    History { message: String },
+    #[error("{message}")]
+    Recording { message: String },
 }
 
 impl From<snapora_core::CoreError> for SnaporaError {

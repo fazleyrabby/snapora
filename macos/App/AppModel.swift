@@ -13,10 +13,12 @@ final class AppModel: ObservableObject {
     @Published private(set) var statusMessage: String?
 
     let settings = Settings.shared
+    let quickAccess: QuickAccessController
     private var timerTask: Task<Void, Never>?
     private let log = Logger(subsystem: "com.snapora.app", category: "capture")
 
     init() {
+        quickAccess = QuickAccessController(settings: Settings.shared)
         registerHotKeys()
     }
 
@@ -111,11 +113,28 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func handleCapture(_ image: CGImage) throws {
-        let url = try ImageExporter.savePNG(image, to: settings.saveDirectory, template: settings.fileNameTemplate)
-        log.info("saved capture \(image.width)x\(image.height)")
-        statusMessage = "Saved \(url.lastPathComponent)"
-        NSWorkspace.shared.activateFileViewerSelecting([url])
+    private func handleCapture(_ image: CGImage, screen: NSScreen? = nil) throws {
+        let item = try CaptureStore.shared.add(image, template: settings.fileNameTemplate)
+        log.info("captured \(image.width)x\(image.height)")
+        switch settings.afterCapture {
+        case .quickAccess:
+            quickAccess.show(item, on: screen)
+        case .saveAndCopy:
+            let copied = QuickAccessController.copyToPasteboard(item)
+            let saved = try QuickAccessController.copyFile(item, to: settings.saveDirectory)
+            statusMessage = copied
+                ? "Copied and saved \(saved.lastPathComponent)"
+                : "Saved \(saved.lastPathComponent) (copy failed)"
+        }
+    }
+
+    func reopenLastCapture() {
+        guard let item = CaptureStore.shared.lastCapture,
+              FileManager.default.fileExists(atPath: item.url.path) else {
+            statusMessage = "No recent capture to reopen."
+            return
+        }
+        quickAccess.show(item)
     }
 
     // MARK: - Shortcuts

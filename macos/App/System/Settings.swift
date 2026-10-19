@@ -1,5 +1,16 @@
 import Foundation
 
+enum AfterCaptureAction: String, CaseIterable, Identifiable {
+    case quickAccess, saveAndCopy
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .quickAccess: "Show Quick Access"
+        case .saveAndCopy: "Save & Copy"
+        }
+    }
+}
+
 /// User preferences backed by `UserDefaults`.
 @MainActor
 final class Settings: ObservableObject {
@@ -11,6 +22,10 @@ final class Settings: ObservableObject {
     @Published var timerSeconds: Int { didSet { defaults.set(timerSeconds, forKey: "timerSeconds") } }
     @Published var fileNameTemplate: String { didSet { defaults.set(fileNameTemplate, forKey: "fileNameTemplate") } }
     @Published var saveDirectory: URL { didSet { defaults.set(saveDirectory.path, forKey: "saveDirectory") } }
+
+    @Published var afterCapture: AfterCaptureAction { didSet { defaults.set(afterCapture.rawValue, forKey: "afterCapture") } }
+    /// Seconds before a Quick Access card closes itself; 0 = never.
+    @Published var quickAccessAutoCloseSeconds: Int { didSet { defaults.set(quickAccessAutoCloseSeconds, forKey: "quickAccessAutoCloseSeconds") } }
 
     /// Last region in global capture coordinates, for "Capture Previous Area".
     var previousArea: CGRect? {
@@ -24,6 +39,8 @@ final class Settings: ObservableObject {
         includeWindowShadow = defaults.bool(forKey: "includeWindowShadow")
         timerSeconds = defaults.integer(forKey: "timerSeconds")
         fileNameTemplate = defaults.string(forKey: "fileNameTemplate") ?? defaultFileNameTemplate()
+        afterCapture = defaults.string(forKey: "afterCapture").flatMap(AfterCaptureAction.init(rawValue:)) ?? .quickAccess
+        quickAccessAutoCloseSeconds = defaults.integer(forKey: "quickAccessAutoCloseSeconds")
         saveDirectory = defaults.string(forKey: "saveDirectory").map { URL(fileURLWithPath: $0) }
             ?? ImageExporter.defaultDirectory
     }
