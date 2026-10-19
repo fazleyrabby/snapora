@@ -27,6 +27,6 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>Snapora records your microphone only when you turn on microphone audio for a screen recording.</string>
     <key>NSHumanReadableCopyright</key>
-    <string></string>
+    <string>© Fazley Rabbi</string>
 </dict>
 </plist>

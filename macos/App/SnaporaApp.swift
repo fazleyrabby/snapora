@@ -63,7 +63,7 @@ struct MenuContent: View {
 
         Divider()
 
-        Text("Snapora core \(coreVersion())")
+        Button("About Snapora") { AboutWindow.show() }
         Button("Quit Snapora") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q")
     }

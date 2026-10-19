@@ -35,6 +35,8 @@ private struct SettingsView: View {
                 .tabItem { Label("Recording", systemImage: "record.circle") }
             ShortcutsTab()
                 .tabItem { Label("Shortcuts", systemImage: "command") }
+            AboutTab()
+                .tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 520)
         .padding(20)
@@ -141,6 +143,24 @@ private struct RecordingTab: View {
                 .foregroundStyle(.secondary)
         }
         .onAppear { devices = Microphones.available() }
+    }
+}
+
+private struct AboutTab: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 80, height: 80)
+            Text("Snapora").font(.title2.bold())
+            Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? coreVersion())")
+                .foregroundStyle(.secondary)
+            Text("Created by \(AboutWindow.authorName)")
+                .padding(.top, 6)
+            Link("fazleyrabbi.xyz", destination: AboutWindow.authorURL)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
     }
 }
 
