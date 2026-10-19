@@ -27,14 +27,20 @@ cargo run -q -p uniffi-bindgen -- generate \
   --language swift \
   --out-dir "$TMP"
 
-rm -rf "$FFI_MODULE" "$GEN/lib" "$SWIFT_OUT"
 mkdir -p "$FFI_MODULE" "$GEN/lib" "$SWIFT_OUT"
 
-cp "$TMP/snapora_ffiFFI.h" "$FFI_MODULE/"
+# Replace outputs only when they change, so concurrent or incremental Swift
+# builds never see missing files.
+install_if_changed() {
+  if ! cmp -s "$1" "$2"; then
+    cp "$1" "$2.tmp.$$" && mv -f "$2.tmp.$$" "$2"
+  fi
+}
+install_if_changed "$TMP/snapora_ffiFFI.h" "$FFI_MODULE/snapora_ffiFFI.h"
 # SwiftPM system-library targets need the map named module.modulemap.
-cp "$TMP/snapora_ffiFFI.modulemap" "$FFI_MODULE/module.modulemap"
-cp "$TMP/snapora_ffi.swift" "$SWIFT_OUT/"
+install_if_changed "$TMP/snapora_ffiFFI.modulemap" "$FFI_MODULE/module.modulemap"
+install_if_changed "$TMP/snapora_ffi.swift" "$SWIFT_OUT/snapora_ffi.swift"
 # Only the static archive goes here so the linker cannot pick the dylib.
-cp "$LIB_DIR/libsnapora_ffi.a" "$GEN/lib/"
+install_if_changed "$LIB_DIR/libsnapora_ffi.a" "$GEN/lib/libsnapora_ffi.a"
 
 echo "Rust core built ($CONFIG); bindings in macos/Generated and macos/App/Generated"

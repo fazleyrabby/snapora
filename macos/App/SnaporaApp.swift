@@ -26,6 +26,7 @@ struct MenuContent: View {
             Button("Capture Previous Area  ⌥⇧6") { model.perform(.previousArea) }
             Button("Capture Window…  ⌥⇧2") { model.perform(.window) }
             Button("Capture Fullscreen  ⌥⇧3") { model.perform(.fullscreen) }
+            Button("Capture Text (OCR)…  ⌥⇧O") { model.perform(.ocr) }
             if let countdown = model.countdown {
                 Button("Cancel Timer (\(countdown)s)") { model.cancelTimer() }
             } else {

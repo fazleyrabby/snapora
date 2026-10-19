@@ -2,7 +2,7 @@ import AppKit
 import OSLog
 
 enum CaptureAction {
-    case fullscreen, region, window, previousArea, allInOne, timedFullscreen, recording
+    case fullscreen, region, window, previousArea, allInOne, timedFullscreen, recording, ocr
 }
 
 @MainActor
@@ -88,9 +88,13 @@ final class AppModel: ObservableObject {
                 try await startRecording()
                 return
             }
+            if action == .ocr {
+                try await recognizeText()
+                return
+            }
             let image: CGImage
             switch action {
-            case .recording:
+            case .recording, .ocr:
                 return
             case .fullscreen, .timedFullscreen:
                 image = try await ScreenCapture.captureMainDisplay(options: options)
@@ -155,6 +159,16 @@ final class AppModel: ObservableObject {
         await recording.start(config: settings.recordingConfig(source: source), template: settings.fileNameTemplate)
     }
 
+    private func recognizeText() async throws {
+        guard case .region(let rect) = await SelectionOverlay.present(mode: .region) else { return }
+        let image = try await ScreenCapture.capture(region: rect, options: settings.captureOptions)
+        let text = try await TextRecognizer.recognize(image)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        let lines = text.split(separator: "\n").count
+        statusMessage = "Copied \(lines) line\(lines == 1 ? "" : "s") of text"
+    }
+
     private func handleRecording(_ url: URL) {
         do {
             let saved = try QuickAccessController.copyFile(
@@ -187,6 +201,7 @@ final class AppModel: ObservableObject {
             (.region, .region),
             (.previousArea, .previousArea),
             (.recording, .recording),
+            (.ocr, .ocr),
         ]
         var conflicts: [String] = []
         for (shortcut, action) in bindings {
