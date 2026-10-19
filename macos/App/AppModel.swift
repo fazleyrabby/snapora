@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import OSLog
 
 enum CaptureAction {
@@ -11,6 +12,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var isCapturing = false
     @Published private(set) var countdown: Int?
     @Published private(set) var statusMessage: String?
+    @Published private(set) var lastRecording: URL?
 
     let settings = Settings.shared
     let quickAccess: QuickAccessController
@@ -20,6 +22,10 @@ final class AppModel: ObservableObject {
 
     init() {
         quickAccess = QuickAccessController(settings: Settings.shared)
+        _ = HistoryService.shared // runs pruning and retention at launch
+        quickAccess.onPin = { PinnedImage.pin(url: $0.url) }
+        quickAccess.onEdit = { ImageEditor.open(url: $0.url) }
+        HistoryWindow.onOpenImage = { ImageEditor.open(url: $0) }
         registerHotKeys()
         recording.onFinished = { [weak self] url in self?.handleRecording(url) }
         recording.onError = { [weak self] message in self?.statusMessage = message }
@@ -132,6 +138,7 @@ final class AppModel: ObservableObject {
 
     private func handleCapture(_ image: CGImage, screen: NSScreen? = nil) throws {
         let item = try CaptureStore.shared.add(image, template: settings.fileNameTemplate)
+        HistoryService.shared.recordScreenshot(url: item.url, pixelSize: item.pixelSize)
         log.info("captured \(image.width)x\(image.height)")
         switch settings.afterCapture {
         case .quickAccess:
@@ -169,7 +176,25 @@ final class AppModel: ObservableObject {
         statusMessage = "Copied \(lines) line\(lines == 1 ? "" : "s") of text"
     }
 
+    func editLastRecording() {
+        guard let url = lastRecording, FileManager.default.fileExists(atPath: url.path) else {
+            statusMessage = "No recent recording."
+            return
+        }
+        VideoEditor.open(url: url)
+    }
+
     private func handleRecording(_ url: URL) {
+        lastRecording = url
+        Task {
+            let asset = AVURLAsset(url: url)
+            let duration = (try? await asset.load(.duration)).map(CMTimeGetSeconds) ?? 0
+            var size = CGSize.zero
+            if let track = try? await asset.loadTracks(withMediaType: .video).first {
+                size = (try? await track.load(.naturalSize)) ?? .zero
+            }
+            HistoryService.shared.recordVideo(url: url, kind: .recording, pixelSize: size, duration: duration)
+        }
         do {
             let saved = try QuickAccessController.copyFile(
                 CaptureItem(id: UUID(), url: url, pixelSize: .zero, createdAt: Date()),

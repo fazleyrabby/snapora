@@ -40,6 +40,11 @@ struct MenuContent: View {
         RecordingMenu(model: model, recording: model.recording, settings: settings)
 
         Button("Reopen Last Capture") { model.reopenLastCapture() }
+        Button("Capture History…") { HistoryWindow.show() }
+        if model.lastRecording != nil {
+            Button("Edit Last Recording…") { model.editLastRecording() }
+        }
+        PinsMenu()
 
         Divider()
 
@@ -101,6 +106,17 @@ struct RecordingMenu: View {
             Button("Discard Recording") { Task { await recording.cancel() } }
         case .stopping:
             Text("Saving recording…")
+        }
+    }
+}
+
+/// Locked pins ignore the mouse, so the menu bar is the way to unlock them.
+/// Static pin state is not observable, so the items are always shown.
+struct PinsMenu: View {
+    var body: some View {
+        Menu("Pinned Screenshots") {
+            Button("Unlock All Pins") { PinnedImage.unlockAll() }
+            Button("Close All Pins") { PinnedImage.closeAll() }
         }
     }
 }
