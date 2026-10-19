@@ -10,18 +10,37 @@ struct SnaporaApp: App {
 
     var body: some Scene {
         MenuBarExtra("Snapora", systemImage: "camera.viewfinder") {
-            MenuContent(model: model)
+            MenuContent(model: model, settings: model.settings)
         }
     }
 }
 
 struct MenuContent: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var settings: Settings
 
     var body: some View {
-        Button("Capture Fullscreen") { model.captureFullscreen() }
-            .keyboardShortcut("3", modifiers: [.option, .shift])
-            .disabled(model.isCapturing)
+        Group {
+            Button("All-in-One…  ⌥⇧1") { model.perform(.allInOne) }
+            Button("Capture Area…  ⌥⇧4") { model.perform(.region) }
+            Button("Capture Previous Area  ⌥⇧6") { model.perform(.previousArea) }
+            Button("Capture Window…  ⌥⇧2") { model.perform(.window) }
+            Button("Capture Fullscreen  ⌥⇧3") { model.perform(.fullscreen) }
+            if let countdown = model.countdown {
+                Button("Cancel Timer (\(countdown)s)") { model.cancelTimer() }
+            } else {
+                Button("Self-Timer (\(settings.timerSeconds)s)") { model.perform(.timedFullscreen) }
+            }
+        }
+        .disabled(model.isCapturing)
+
+        Divider()
+
+        Toggle("Hide Desktop Icons", isOn: $settings.hideDesktopIcons)
+        Toggle("Window Shadow", isOn: $settings.includeWindowShadow)
+        Picker("Timer", selection: $settings.timerSeconds) {
+            ForEach([3, 5, 10], id: \.self) { Text("\($0) seconds").tag($0) }
+        }
 
         Divider()
 
