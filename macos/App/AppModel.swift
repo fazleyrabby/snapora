@@ -24,7 +24,12 @@ final class AppModel: ObservableObject {
         quickAccess = QuickAccessController(settings: Settings.shared)
         _ = HistoryService.shared // runs pruning and retention at launch
         quickAccess.onPin = { PinnedImage.pin(url: $0.url) }
-        quickAccess.onEdit = { ImageEditor.open(url: $0.url) }
+        quickAccess.onEdit = { item in
+            switch item.kind {
+            case .image: ImageEditor.open(url: item.url)
+            case .video: VideoEditor.open(url: item.url)
+            }
+        }
         HistoryWindow.onOpenImage = { ImageEditor.open(url: $0) }
         registerHotKeys()
         recording.onFinished = { [weak self] url in self?.handleRecording(url) }
@@ -142,6 +147,8 @@ final class AppModel: ObservableObject {
         switch settings.afterCapture {
         case .quickAccess:
             quickAccess.show(item, on: screen)
+        case .openEditor:
+            ImageEditor.open(url: item.url)
         case .saveAndCopy:
             let copied = QuickAccessController.copyToPasteboard(item)
             let saved = try QuickAccessController.copyFile(item, to: settings.saveDirectory)
@@ -225,16 +232,21 @@ final class AppModel: ObservableObject {
                 size = (try? await track.load(.naturalSize)) ?? .zero
             }
             HistoryService.shared.recordVideo(url: url, kind: .recording, pixelSize: size, duration: duration)
-        }
-        do {
-            let saved = try QuickAccessController.copyFile(
-                CaptureItem(id: UUID(), url: url, pixelSize: .zero, createdAt: Date()),
-                to: settings.saveDirectory
-            )
-            statusMessage = "Saved \(saved.lastPathComponent)"
-            NSWorkspace.shared.activateFileViewerSelecting([saved])
-        } catch {
-            statusMessage = "Recording saved in Snapora's library; copy failed: \(error.localizedDescription)"
+            let item = CaptureStore.shared.addVideo(url: url, pixelSize: size, duration: duration.isFinite ? duration : 0)
+            switch settings.afterRecording {
+            case .quickAccess:
+                quickAccess.show(item)
+            case .openEditor:
+                VideoEditor.open(url: url)
+            case .saveToFolder:
+                do {
+                    let saved = try QuickAccessController.copyFile(item, to: settings.saveDirectory)
+                    statusMessage = "Saved \(saved.lastPathComponent)"
+                    NSWorkspace.shared.activateFileViewerSelecting([saved])
+                } catch {
+                    statusMessage = "Recording saved in Snapora's library; copy failed: \(error.localizedDescription)"
+                }
+            }
         }
     }
 

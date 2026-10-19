@@ -1,12 +1,25 @@
 import Foundation
 
 enum AfterCaptureAction: String, CaseIterable, Identifiable {
-    case quickAccess, saveAndCopy
+    case quickAccess, saveAndCopy, openEditor
     var id: String { rawValue }
     var label: String {
         switch self {
         case .quickAccess: "Show Quick Access"
         case .saveAndCopy: "Save & Copy"
+        case .openEditor: "Open Editor"
+        }
+    }
+}
+
+enum AfterRecordingAction: String, CaseIterable, Identifiable {
+    case quickAccess, openEditor, saveToFolder
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .quickAccess: "Show Quick Access"
+        case .openEditor: "Open Editor"
+        case .saveToFolder: "Save to Folder"
         }
     }
 }
@@ -24,6 +37,7 @@ final class Settings: ObservableObject {
     @Published var saveDirectory: URL { didSet { defaults.set(saveDirectory.path, forKey: "saveDirectory") } }
 
     @Published var afterCapture: AfterCaptureAction { didSet { defaults.set(afterCapture.rawValue, forKey: "afterCapture") } }
+    @Published var afterRecording: AfterRecordingAction { didSet { defaults.set(afterRecording.rawValue, forKey: "afterRecording") } }
     /// Seconds before a Quick Access card closes itself; 0 = never.
     @Published var quickAccessAutoCloseSeconds: Int { didSet { defaults.set(quickAccessAutoCloseSeconds, forKey: "quickAccessAutoCloseSeconds") } }
 
@@ -49,6 +63,7 @@ final class Settings: ObservableObject {
         timerSeconds = defaults.integer(forKey: "timerSeconds")
         fileNameTemplate = defaults.string(forKey: "fileNameTemplate") ?? defaultFileNameTemplate()
         afterCapture = defaults.string(forKey: "afterCapture").flatMap(AfterCaptureAction.init(rawValue:)) ?? .quickAccess
+        afterRecording = defaults.string(forKey: "afterRecording").flatMap(AfterRecordingAction.init(rawValue:)) ?? .quickAccess
         quickAccessAutoCloseSeconds = defaults.integer(forKey: "quickAccessAutoCloseSeconds")
         recordFPS = defaults.integer(forKey: "recordFPS")
         recordSystemAudio = defaults.bool(forKey: "recordSystemAudio")

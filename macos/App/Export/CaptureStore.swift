@@ -1,10 +1,14 @@
 import AppKit
 
 struct CaptureItem: Identifiable, Equatable {
+    enum Kind { case image, video }
+
     let id: UUID
     let url: URL
     let pixelSize: CGSize
     let createdAt: Date
+    var kind: Kind = .image
+    var duration: TimeInterval?
 }
 
 /// Persists every capture as a PNG in Application Support before any
@@ -29,6 +33,17 @@ final class CaptureStore {
             id: UUID(), url: url,
             pixelSize: CGSize(width: image.width, height: image.height),
             createdAt: Date()
+        )
+        lastCapture = item
+        return item
+    }
+
+    /// Registers an existing recording file in place (no copy).
+    @discardableResult
+    func addVideo(url: URL, pixelSize: CGSize, duration: TimeInterval) -> CaptureItem {
+        let item = CaptureItem(
+            id: UUID(), url: url, pixelSize: pixelSize, createdAt: Date(),
+            kind: .video, duration: duration
         )
         lastCapture = item
         return item

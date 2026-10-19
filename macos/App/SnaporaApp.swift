@@ -57,6 +57,9 @@ struct MenuContent: View {
         Picker("After Capture", selection: $settings.afterCapture) {
             ForEach(AfterCaptureAction.allCases) { Text($0.label).tag($0) }
         }
+        Picker("After Recording", selection: $settings.afterRecording) {
+            ForEach(AfterRecordingAction.allCases) { Text($0.label).tag($0) }
+        }
         Picker("Quick Access Auto-Close", selection: $settings.quickAccessAutoCloseSeconds) {
             Text("Never").tag(0)
             ForEach([5, 10, 30], id: \.self) { Text("\($0)s").tag($0) }

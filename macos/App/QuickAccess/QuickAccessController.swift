@@ -1,11 +1,12 @@
 import AppKit
+import AVFoundation
 import SwiftUI
 
 /// Observable state for one card in the stack.
 @MainActor
 final class QuickAccessCard: ObservableObject, Identifiable {
     let item: CaptureItem
-    let image: NSImage?
+    @Published private(set) var image: NSImage?
     @Published var hovering = false
     @Published var toast: String?
     var elapsed: TimeInterval = 0
@@ -16,7 +17,24 @@ final class QuickAccessCard: ObservableObject, Identifiable {
     init(item: CaptureItem) {
         self.item = item
         self.id = item.id
-        self.image = NSImage(contentsOf: item.url)
+        if item.kind == .image {
+            self.image = NSImage(contentsOf: item.url)
+        } else {
+            self.image = nil
+            loadVideoThumbnail()
+        }
+    }
+
+    private func loadVideoThumbnail() {
+        let url = item.url
+        Task { [weak self] in
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: QuickAccessMetrics.maxWidth * 2, height: QuickAccessMetrics.maxHeight * 2)
+            let cg = try? await generator.image(at: CMTime(seconds: 0.1, preferredTimescale: 600)).image
+            guard let cg, let self else { return }
+            self.image = NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+        }
     }
 
     /// Thumbnail size in points: fits within 240x180 preserving aspect ratio.
@@ -207,6 +225,11 @@ final class QuickAccessController {
 
     @discardableResult
     static func copyToPasteboard(_ item: CaptureItem) -> Bool {
+        if item.kind == .video {
+            let pb = NSPasteboard.general
+            pb.clearContents()
+            return pb.writeObjects([item.url as NSURL])
+        }
         guard let data = try? Data(contentsOf: item.url), let image = NSImage(data: data) else { return false }
         let pb = NSPasteboard.general
         pb.clearContents()
