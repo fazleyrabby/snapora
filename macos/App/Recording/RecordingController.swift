@@ -18,6 +18,8 @@ final class RecordingController: ObservableObject {
     private var ticker: Timer?
     private var controlPanel: NSPanel?
     private var borderPanel: NSPanel?
+    /// The stream died while still starting; stop as soon as start returns.
+    private var failedDuringStart = false
     private let log = Logger(subsystem: "com.snapora.app", category: "recording")
 
     var isActive: Bool { phase != .idle }
@@ -36,16 +38,25 @@ final class RecordingController: ObservableObject {
             let url = ImageExporter.uniqueURL(in: Self.recordingsDirectory, fileName: name)
             let recorder = ScreenRecorder(config: config, outputURL: url)
             recorder.onUnexpectedStop = { [weak self] error in
-                self?.log.error("recording interrupted")
-                self?.onError?("Recording stopped: \(error.localizedDescription)")
-                Task { await self?.stop() }
+                guard let self else { return }
+                self.log.error("recording interrupted")
+                self.onError?("Recording stopped: \(error.localizedDescription)")
+                if self.phase == .starting {
+                    self.failedDuringStart = true
+                } else {
+                    Task { await self.stop() }
+                }
             }
-            try await recorder.start()
+            failedDuringStart = false
             self.recorder = recorder
+            try await recorder.start()
             phase = .recording
             showControls(for: config.source)
             startTicker()
+            await recorder.refreshExclusions()
+            if failedDuringStart { await stop() }
         } catch {
+            recorder = nil
             phase = .idle
             onError?("Could not start recording: \(error.localizedDescription)")
         }
@@ -81,7 +92,7 @@ final class RecordingController: ObservableObject {
     }
 
     func cancel() async {
-        guard let recorder else { return }
+        guard let recorder, phase == .recording || phase == .paused else { return }
         phase = .stopping
         teardownUI()
         await recorder.cancel()
@@ -155,8 +166,8 @@ final class RecordingController: ObservableObject {
     }
 }
 
-/// Dashed red frame just outside the recorded area. Snapora's own windows are
-/// excluded from capture, so it never appears in the video.
+/// Dashed red frame just outside the recorded area, so it is never inside the
+/// captured region. Snapora's windows are also excluded from the stream.
 private final class RecordingBorderView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         let path = NSBezierPath(rect: bounds.insetBy(dx: 1.5, dy: 1.5))

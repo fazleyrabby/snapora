@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreMedia
 import OSLog
 import ScreenCaptureKit
@@ -27,6 +27,7 @@ enum RecordingError: LocalizedError {
     case writerFailed(String)
     case microphoneDenied
     case emptyRecording
+    case lowDiskSpace
 
     var errorDescription: String? {
         switch self {
@@ -35,6 +36,7 @@ enum RecordingError: LocalizedError {
         case .writerFailed(let m): "Could not write the recording: \(m)"
         case .microphoneDenied: "Microphone access was denied. Enable it in System Settings → Privacy & Security → Microphone."
         case .emptyRecording: "The recording contains no frames."
+        case .lowDiskSpace: "Not enough free disk space to record (at least 1 GB needed)."
         }
     }
 }
@@ -61,6 +63,8 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
     private var droppedFrames = 0
     private var writtenFrames = 0
     private var streamError: Error?
+    /// Last output time written per track; appends must strictly increase.
+    private var lastOutput: [SampleKind: Int64] = [:]
 
     /// Called on the main queue if the stream stops unexpectedly.
     var onUnexpectedStop: ((Error) -> Void)?
@@ -76,11 +80,26 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
         if config.microphone, !(await Self.requestMicrophoneAccess()) {
             throw RecordingError.microphoneDenied
         }
+        try checkDiskSpace()
+        do {
+            try await startCapture()
+        } catch {
+            // startWriting() already created the file; don't leave junk behind.
+            try? await stream?.stopCapture()
+            stopMicrophone()
+            queue.sync { writer?.cancelWriting() }
+            try? FileManager.default.removeItem(at: outputURL)
+            throw error
+        }
+    }
+
+    private func startCapture() async throws {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         let (filter, streamConfig) = try makeStreamConfiguration(content: content)
         try makeWriter(width: streamConfig.width, height: streamConfig.height)
 
         let stream = SCStream(filter: filter, configuration: streamConfig, delegate: self)
+        self.stream = stream
         try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
         if config.systemAudio {
             try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
@@ -92,37 +111,60 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
                 try startLegacyMicrophone()
             }
         }
-        self.stream = stream
         try timeline.start()
         try await stream.startCapture()
-        micSession?.startRunning()
+        if let micSession {
+            // startRunning blocks; keep it off the main thread.
+            await withCheckedContinuation { c in
+                DispatchQueue.global(qos: .userInitiated).async { micSession.startRunning(); c.resume() }
+            }
+        }
         log.info("recording started \(streamConfig.width)x\(streamConfig.height) @\(self.config.framesPerSecond)fps")
     }
 
     func pause() {
-        queue.sync { try? timeline.pause(nowNs: Self.hostNow()) }
+        try? timeline.pause(nowNs: Self.hostNow())
     }
 
     func resume() {
-        queue.sync { try? timeline.resume(nowNs: Self.hostNow()) }
+        try? timeline.resume(nowNs: Self.hostNow())
+    }
+
+    /// Re-applies exclusions after Snapora shows new windows (controls,
+    /// border). Only needed when excluding by window list.
+    func refreshExclusions() async {
+        guard config.hideDesktopIcons, case .region = config.source, let stream else { return }
+        guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true),
+              let (filter, _) = try? makeStreamConfiguration(content: content) else { return }
+        try? await stream.updateContentFilter(filter)
     }
 
     /// Stops capture and finalizes the file. Returns the output URL.
     func stop() async throws -> URL {
+        // Fix the end time first: frames only arrive when the screen changes,
+        // so the last sample is not the end of the recording.
+        try? timeline.stop(nowNs: Self.hostNow())
         try? await stream?.stopCapture()
-        micSession?.stopRunning()
-        let (writer, started) = queue.sync { () -> (AVAssetWriter?, Bool) in
-            try? timeline.stop()
-            videoInput?.markAsFinished()
-            systemAudioInput?.markAsFinished()
-            micInput?.markAsFinished()
-            return (self.writer, sessionStarted)
+        stopMicrophone()
+        let (writer, started, failure) = queue.sync { () -> (AVAssetWriter?, Bool, Error?) in
+            (self.writer, sessionStarted, streamError)
         }
         guard let writer else { throw RecordingError.writerFailed("writer missing") }
         guard started else {
-            writer.cancelWriting()
+            if writer.status == .writing { writer.cancelWriting() }
             try? FileManager.default.removeItem(at: outputURL)
             throw RecordingError.emptyRecording
+        }
+        // Calling endSession/finishWriting on a failed writer raises an
+        // Objective-C exception, so bail out with the file removed.
+        guard writer.status == .writing else {
+            try? FileManager.default.removeItem(at: outputURL)
+            throw RecordingError.writerFailed(writer.error?.localizedDescription ?? failure?.localizedDescription ?? "writer failed")
+        }
+        queue.sync {
+            videoInput?.markAsFinished()
+            systemAudioInput?.markAsFinished()
+            micInput?.markAsFinished()
         }
         writer.endSession(atSourceTime: CMTime(value: timeline.durationNs(), timescale: 1_000_000_000))
         await writer.finishWriting()
@@ -135,17 +177,31 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
 
     /// Stops capture and deletes any partial file.
     func cancel() async {
+        try? timeline.stop(nowNs: Self.hostNow())
         try? await stream?.stopCapture()
-        micSession?.stopRunning()
+        stopMicrophone()
         queue.sync {
-            try? timeline.stop()
-            writer?.cancelWriting()
+            if writer?.status == .writing { writer?.cancelWriting() }
         }
         try? FileManager.default.removeItem(at: outputURL)
     }
 
+    /// Elapsed recording time excluding pauses (safe from any thread).
     var duration: TimeInterval {
-        queue.sync { Double(timeline.durationNs()) / 1e9 }
+        Double(timeline.outputTimeNs(nowNs: Self.hostNow())) / 1e9
+    }
+
+    private func checkDiskSpace() throws {
+        let dir = outputURL.deletingLastPathComponent()
+        let values = try? dir.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        if let free = values?.volumeAvailableCapacityForImportantUsage, free < 1_000_000_000 {
+            throw RecordingError.lowDiskSpace
+        }
+    }
+
+    private func stopMicrophone() {
+        guard let micSession else { return }
+        DispatchQueue.global(qos: .userInitiated).async { micSession.stopRunning() }
     }
 
     // MARK: - Setup
@@ -161,19 +217,29 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
                 throw RecordingError.noDisplay
             }
             let pid = ProcessInfo.processInfo.processIdentifier
-            let iconLevel = Int(CGWindowLevelForKey(.desktopIconWindow))
-            let excluded = content.windows.filter { w in
-                w.owningApplication?.processID == pid
-                    || (config.hideDesktopIcons
-                        && w.owningApplication?.bundleIdentifier == "com.apple.finder"
-                        && w.windowLayer == iconLevel)
+            if config.hideDesktopIcons {
+                // Window-list exclusion; refreshExclusions() re-applies it
+                // once Snapora's recording controls exist.
+                let iconLevel = Int(CGWindowLevelForKey(.desktopIconWindow))
+                let excluded = content.windows.filter { w in
+                    w.owningApplication?.processID == pid
+                        || (w.owningApplication?.bundleIdentifier == "com.apple.finder" && w.windowLayer == iconLevel)
+                }
+                filter = SCContentFilter(display: display, excludingWindows: excluded)
+            } else {
+                // App exclusion also covers windows Snapora opens later
+                // (controls, Quick Access, editors).
+                let own = content.applications.filter { $0.processID == pid }
+                filter = SCContentFilter(display: display, excludingApplications: own, exceptingWindows: [])
             }
-            filter = SCContentFilter(display: display, excludingWindows: excluded)
             let scale = Double(filter.pointPixelScale)
-            pixels = try selectionToPixels(
+            let raw = try selectionToPixels(
                 display: DisplayGeometry(frame: Rect(cg: display.frame), scale: scale),
                 selection: Rect(cg: region)
             )
+            // Encoders need even sizes; trim the source by the same pixel so
+            // frames are not resampled.
+            pixels = PixelRect(x: raw.x, y: raw.y, width: max(2, raw.width & ~1), height: max(2, raw.height & ~1))
             sc.sourceRect = CGRect(
                 x: Double(pixels.x) / scale, y: Double(pixels.y) / scale,
                 width: Double(pixels.width) / scale, height: Double(pixels.height) / scale
@@ -264,6 +330,16 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
         let session = AVCaptureSession()
         let input = try AVCaptureDeviceInput(device: device)
         let output = AVCaptureAudioDataOutput()
+        // Normalize device formats (mono, 44.1 kHz, multichannel) to what the
+        // AAC writer input expects.
+        output.audioSettings = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: 48_000,
+            AVNumberOfChannelsKey: 2,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsNonInterleaved: false,
+        ]
         output.setSampleBufferDelegate(self, queue: queue)
         guard session.canAddInput(input), session.canAddOutput(output) else {
             throw RecordingError.writerFailed("cannot configure microphone")
@@ -289,7 +365,7 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
     // MARK: - Sample handling (on `queue`)
 
     fileprivate func handle(_ sample: CMSampleBuffer, kind: SampleKind) {
-        guard let writer, writer.status == .writing, CMSampleBufferDataIsReady(sample) else { return }
+        guard streamError == nil, let writer, writer.status == .writing, CMSampleBufferDataIsReady(sample) else { return }
 
         if kind == .video {
             guard Self.isCompleteFrame(sample) else { return }
@@ -300,6 +376,7 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
         let pts = CMSampleBufferGetPresentationTimeStamp(sample)
         guard pts.isValid else { return }
         guard let outNs = timeline.map(ptsNs: Int64(CMTimeGetSeconds(pts) * 1e9)) else { return }
+        if let last = lastOutput[kind], outNs <= last { return }
 
         if !sessionStarted {
             writer.startSession(atSourceTime: .zero)
@@ -318,6 +395,7 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
         }
         guard let retimed = Self.retime(sample, to: CMTime(value: outNs, timescale: 1_000_000_000)) else { return }
         if input.append(retimed) {
+            lastOutput[kind] = outNs
             if kind == .video { writtenFrames += 1 }
         } else if writer.status == .failed {
             log.error("writer failed: \(writer.error?.localizedDescription ?? "", privacy: .public)")

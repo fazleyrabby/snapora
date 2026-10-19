@@ -121,6 +121,9 @@ impl Stitcher {
 
     pub fn push(&mut self, frame: Frame<'_>) -> Result<FrameOutcome, StitchError> {
         validate(&frame)?;
+        if self.limited {
+            return Ok(FrameOutcome::LimitReached);
+        }
         if frame.width != self.width || frame.height != self.height {
             return Ok(FrameOutcome::SizeChanged);
         }
@@ -159,9 +162,6 @@ impl Stitcher {
         let start = self.end_row.saturating_sub(found.dy);
         let mut rows = body_end.saturating_sub(start);
         let current = self.canvas.len() / row_bytes;
-        if self.limited {
-            return Ok(FrameOutcome::LimitReached);
-        }
         if current + rows + footer > self.max_rows {
             rows = self.max_rows.saturating_sub(current + footer);
             self.limited = true;

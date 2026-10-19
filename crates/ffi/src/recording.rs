@@ -66,8 +66,13 @@ impl RecordingTimeline {
         Ok(self.lock().resume(now_ns)?)
     }
 
-    pub fn stop(&self) -> Result<(), SnaporaError> {
-        Ok(self.lock().stop()?)
+    pub fn stop(&self, now_ns: i64) -> Result<(), SnaporaError> {
+        Ok(self.lock().stop(now_ns)?)
+    }
+
+    /// Elapsed output time at host time `now_ns` (excludes pauses).
+    pub fn output_time_ns(&self, now_ns: i64) -> i64 {
+        self.lock().output_time(now_ns)
     }
 
     /// Output time for a sample, or `None` to drop it.

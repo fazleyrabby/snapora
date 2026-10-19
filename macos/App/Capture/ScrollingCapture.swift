@@ -33,12 +33,15 @@ final class ScrollingCapture: ObservableObject {
     static func run(region: CGRect, options: CaptureOptions) async throws -> Result? {
         let session = ScrollingCapture(region: region, options: options)
         let first = try await ScreenCapture.capture(region: region, options: options)
-        let buffer = try PixelBuffer(first)
-        session.stitcher = try ScrollStitcher(
-            width: buffer.width, height: buffer.height, bytesPerRow: buffer.bytesPerRow,
-            data: buffer.data, maxRows: maxRows
-        )
-        session.height = Int(buffer.height)
+        let stitcher = try await Task.detached(priority: .userInitiated) {
+            let buffer = try PixelBuffer(first)
+            return try ScrollStitcher(
+                width: buffer.width, height: buffer.height, bytesPerRow: buffer.bytesPerRow,
+                data: buffer.data, maxRows: maxRows
+            )
+        }.value
+        session.stitcher = stitcher
+        session.height = Int(stitcher.height())
         return try await withCheckedThrowingContinuation { c in
             session.continuation = c
             session.showUI()
@@ -60,11 +63,16 @@ final class ScrollingCapture: ObservableObject {
         guard let stitcher else { return }
         do {
             let image = try await ScreenCapture.capture(region: region, options: options)
-            let buffer = try PixelBuffer(image)
-            let outcome = try stitcher.push(
-                width: buffer.width, height: buffer.height, bytesPerRow: buffer.bytesPerRow, data: buffer.data
-            )
-            height = Int(stitcher.height())
+            // Pixel conversion and matching are heavy; keep them off the main actor.
+            let (outcome, newHeight) = try await Task.detached(priority: .userInitiated) {
+                let buffer = try PixelBuffer(image)
+                let outcome = try stitcher.push(
+                    width: buffer.width, height: buffer.height, bytesPerRow: buffer.bytesPerRow, data: buffer.data
+                )
+                return (outcome, Int(stitcher.height()))
+            }.value
+            guard continuation != nil else { return } // finished meanwhile
+            height = newHeight
             switch outcome {
             case .appended(_, let uncertain):
                 if uncertain { uncertainJoins += 1 }
@@ -86,17 +94,21 @@ final class ScrollingCapture: ObservableObject {
     fileprivate func done() {
         loop?.cancel()
         teardownUI()
-        do {
-            guard let stitcher else { throw CaptureError.invalidGeometry("no frames") }
-            let result = try stitcher.finish()
-            let image = try PixelBuffer.makeImage(
-                width: Int(result.width), height: Int(result.height), data: result.data
-            )
-            continuation?.resume(returning: Result(image: image, uncertainJoins: Int(result.uncertainJoins)))
-        } catch {
-            continuation?.resume(throwing: error)
+        guard let continuation else { return }
+        self.continuation = nil
+        let stitcher = self.stitcher
+        Task.detached(priority: .userInitiated) {
+            do {
+                guard let stitcher else { throw CaptureError.invalidGeometry("no frames") }
+                let result = try stitcher.finish()
+                let image = try PixelBuffer.makeImage(
+                    width: Int(result.width), height: Int(result.height), data: result.data
+                )
+                continuation.resume(returning: Result(image: image, uncertainJoins: Int(result.uncertainJoins)))
+            } catch {
+                continuation.resume(throwing: error)
+            }
         }
-        continuation = nil
     }
 
     fileprivate func cancel() {
