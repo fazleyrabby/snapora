@@ -17,6 +17,8 @@ struct RecordingConfig {
     var showsCursor = true
     var systemAudio = false
     var microphone = false
+    /// `AVCaptureDevice.uniqueID`; nil = system default input.
+    var microphoneDeviceID: String?
     var codec: Codec = .h264
     var hideDesktopIcons = false
 }
@@ -269,6 +271,9 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
         sc.channelCount = 2
         if #available(macOS 15.0, *), config.microphone {
             sc.captureMicrophone = true
+            if let device = Microphones.resolve(config.microphoneDeviceID) {
+                sc.microphoneCaptureDeviceID = device.uniqueID
+            }
         }
         return (filter, sc)
     }
@@ -326,7 +331,7 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
     /// macOS 14: microphone through AVCaptureSession. Its samples use the host
     /// clock, matching ScreenCaptureKit timestamps.
     private func startLegacyMicrophone() throws {
-        guard let device = AVCaptureDevice.default(for: .audio) else { return }
+        guard let device = Microphones.resolve(config.microphoneDeviceID) else { return }
         let session = AVCaptureSession()
         let input = try AVCaptureDeviceInput(device: device)
         let output = AVCaptureAudioDataOutput()

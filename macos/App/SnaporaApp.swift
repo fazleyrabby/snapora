@@ -99,6 +99,11 @@ struct RecordingMenu: View {
                 }
                 Toggle("Record System Audio", isOn: $settings.recordSystemAudio)
                 Toggle("Record Microphone", isOn: $settings.recordMicrophone)
+                Picker("Microphone", selection: $settings.recordMicrophoneID) {
+                    Text(Microphones.systemDefault.map { "System Default (\($0.name))" } ?? "System Default").tag("")
+                    ForEach(Microphones.available()) { Text($0.name).tag($0.id) }
+                }
+                .disabled(!settings.recordMicrophone)
                 Toggle("Show Cursor", isOn: $settings.recordShowsCursor)
                 Toggle("HEVC (smaller files)", isOn: $settings.recordHEVC)
             }

@@ -442,10 +442,7 @@ private struct CaptureBar: View {
 
             if state.intent == .recording {
                 Divider().frame(height: 22)
-                Toggle(isOn: $settings.recordMicrophone) {
-                    Image(systemName: settings.recordMicrophone ? "mic.fill" : "mic.slash")
-                }
-                .help("Microphone")
+                MicrophoneMenu(settings: settings)
                 Toggle(isOn: $settings.recordSystemAudio) {
                     Image(systemName: settings.recordSystemAudio ? "speaker.wave.2.fill" : "speaker.slash")
                 }
@@ -493,6 +490,44 @@ private struct CaptureBar: View {
         case .window: "Click a window, then Record (Return)"
         case .display: "Click a display, then Record (Return)"
         }
+    }
+}
+
+/// Mic on/off plus input device choice, as one menu button.
+private struct MicrophoneMenu: View {
+    @ObservedObject var settings: Settings
+
+    var body: some View {
+        Menu {
+            Button {
+                settings.recordMicrophone = false
+            } label: {
+                if !settings.recordMicrophone { Image(systemName: "checkmark") }
+                Text("No Microphone")
+            }
+            Divider()
+            Button {
+                settings.recordMicrophoneID = ""
+                settings.recordMicrophone = true
+            } label: {
+                if settings.recordMicrophone && settings.recordMicrophoneID.isEmpty { Image(systemName: "checkmark") }
+                Text(Microphones.systemDefault.map { "System Default (\($0.name))" } ?? "System Default")
+            }
+            ForEach(Microphones.available()) { device in
+                Button {
+                    settings.recordMicrophoneID = device.id
+                    settings.recordMicrophone = true
+                } label: {
+                    if settings.recordMicrophone && settings.recordMicrophoneID == device.id { Image(systemName: "checkmark") }
+                    Text(device.name)
+                }
+            }
+        } label: {
+            Image(systemName: settings.recordMicrophone ? "mic.fill" : "mic.slash")
+        }
+        .menuIndicator(.visible)
+        .fixedSize()
+        .help(settings.recordMicrophone ? "Microphone: \(Microphones.name(for: settings.recordMicrophoneID))" : "Microphone off")
     }
 }
 

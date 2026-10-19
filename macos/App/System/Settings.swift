@@ -46,6 +46,8 @@ final class Settings: ObservableObject {
     @Published var recordMicrophone: Bool { didSet { defaults.set(recordMicrophone, forKey: "recordMicrophone") } }
     @Published var recordShowsCursor: Bool { didSet { defaults.set(recordShowsCursor, forKey: "recordShowsCursor") } }
     @Published var recordHEVC: Bool { didSet { defaults.set(recordHEVC, forKey: "recordHEVC") } }
+    /// Microphone `uniqueID`; empty = system default input.
+    @Published var recordMicrophoneID: String { didSet { defaults.set(recordMicrophoneID, forKey: "recordMicrophoneID") } }
 
     /// Last region in global capture coordinates, for "Capture Previous Area".
     var previousArea: CGRect? {
@@ -70,6 +72,7 @@ final class Settings: ObservableObject {
         recordMicrophone = defaults.bool(forKey: "recordMicrophone")
         recordShowsCursor = defaults.bool(forKey: "recordShowsCursor")
         recordHEVC = defaults.bool(forKey: "recordHEVC")
+        recordMicrophoneID = defaults.string(forKey: "recordMicrophoneID") ?? ""
         saveDirectory = defaults.string(forKey: "saveDirectory").map { URL(fileURLWithPath: $0) }
             ?? ImageExporter.defaultDirectory
     }
@@ -85,6 +88,7 @@ final class Settings: ObservableObject {
             showsCursor: recordShowsCursor,
             systemAudio: recordSystemAudio,
             microphone: recordMicrophone,
+            microphoneDeviceID: recordMicrophoneID.isEmpty ? nil : recordMicrophoneID,
             codec: recordHEVC ? .hevc : .h264,
             hideDesktopIcons: hideDesktopIcons
         )
