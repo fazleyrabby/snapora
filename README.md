@@ -52,8 +52,14 @@ relaunch the app.
 
 ### Signing
 
-Builds are ad-hoc signed by default, so macOS may ask for permission again
-after each rebuild. To use a real identity:
+Builds are ad-hoc signed by default, so macOS treats every rebuild as a new
+app and asks for Screen Recording permission again. To keep the permission,
+create a self-signed certificate once (Keychain Access → Certificate
+Assistant → Create a Certificate…, name **Snapora Development**, Self Signed
+Root, Code Signing); the build script uses it automatically. Reset a stale
+permission entry with `tccutil reset ScreenCapture com.snapora.app`.
+
+To sign with a Developer ID instead:
 
 ```bash
 SNAPORA_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" make app

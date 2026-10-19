@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
 # Builds Snapora.app into build/<config>/.
 # Usage: scripts/build-app.sh [debug|release]
-# Signing: set SNAPORA_SIGN_IDENTITY to a codesigning identity. Defaults to
-# ad-hoc ("-"); with ad-hoc signing macOS may re-ask for Screen Recording
-# permission after each rebuild.
+# Signing: SNAPORA_SIGN_IDENTITY, else a "Snapora Development" certificate
+# if one is in the keychain (stable identity, so macOS keeps the Screen
+# Recording permission across rebuilds), else ad-hoc ("-"), which makes macOS
+# treat every rebuild as a new app.
 set -euo pipefail
 
 CONFIG="${1:-release}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-IDENTITY="${SNAPORA_SIGN_IDENTITY:--}"
+if [[ -n "${SNAPORA_SIGN_IDENTITY:-}" ]]; then
+  IDENTITY="$SNAPORA_SIGN_IDENTITY"
+elif security find-certificate -c "Snapora Development" >/dev/null 2>&1; then
+  IDENTITY="Snapora Development"
+else
+  IDENTITY="-"
+fi
 VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' "$ROOT/Cargo.toml" | head -1)"
 
 "$ROOT/scripts/build-rust.sh" "$CONFIG"
