@@ -16,7 +16,9 @@ Ad-hoc signed builds may need re-granting after every rebuild.
 - [ ] ⌥⇧4 region: crosshair, size label in pixels, Esc cancels, output matches selection.
 - [ ] Space during region toggles window picking; click captures the window with shadow.
 - [ ] ⌥⇧2 window capture with "Window Shadow" on and off (transparent background).
-- [ ] ⌥⇧1 All-in-One: drag = region, click = window, Return = full display.
+- [ ] ⌥⇧1 All-in-One: capture bar switches Screenshot/Record and Area/Window/Display.
+- [ ] ⌥⇧3 with an external monitor: hover highlights a display, click captures that display only.
+- [ ] Capture bar is clickable and never captured; hovering it does not highlight windows behind it.
 - [ ] ⌥⇧6 previous area repeats the last region.
 - [ ] Self-timer counts down in the menu and can be cancelled.
 - [ ] "Hide Desktop Icons" removes Finder desktop icons from the output.
@@ -37,7 +39,11 @@ Ad-hoc signed builds may need re-granting after every rebuild.
 - [ ] Transparent window captures keep alpha in PNG; JPEG flattens on white.
 
 ### Recording (M4)
-- [ ] ⌥⇧5 → choose area → control bar shows timer; red dashed border is NOT in the video.
+- [ ] ⌥⇧5 → Area: drag, adjust with handles/move, Return or Record starts; Esc clears selection.
+- [ ] ⌥⇧5 → Window: click selects a window, Record starts window recording.
+- [ ] ⌥⇧5 → Display: choose each monitor; recording covers only that display.
+- [ ] Mic / system audio / cursor / fps toggles in the bar apply to the recording.
+- [ ] Control bar shows timer; red dashed border and controls are NOT in the video.
 - [ ] Pause/resume leaves no gap or frozen segment in the output.
 - [ ] System audio and microphone tracks present and in sync after 10+ minutes.
 - [ ] Discard deletes the partial file. Window recording follows the window.

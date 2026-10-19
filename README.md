@@ -8,11 +8,11 @@ CleanShot X workflows. Rust core + Swift/SwiftUI/AppKit shell. See
 
 | Shortcut | Action |
 |---|---|
-| ⌥⇧1 | All-in-One (drag = region, click = window, Return = display) |
+| ⌥⇧1 | All-in-One: screenshot or record; area, window, or display |
 | ⌥⇧2 | Capture window |
-| ⌥⇧3 | Capture fullscreen |
+| ⌥⇧3 | Capture fullscreen (pick a display when several are connected) |
 | ⌥⇧4 | Capture area (Space toggles window picking) |
-| ⌥⇧5 | Start / stop screen recording |
+| ⌥⇧5 | Record: choose area / window / display, set audio, then Record; press again to stop |
 | ⌥⇧6 | Capture previous area |
 | ⌥⇧O | Capture text (OCR) |
 
@@ -24,6 +24,9 @@ CleanShot X workflows. Rust core + Swift/SwiftUI/AppKit shell. See
 - Scrolling capture, self-timer, hide desktop icons
 - Capture history with search and favorites; pinned screenshots
 - Everything stays local; nothing is uploaded
+
+In the capture overlay: `A` area, `W` window, `F` display, Space toggles
+area/window, Return confirms, Esc clears the selection or cancels.
 
 ## Requirements
 

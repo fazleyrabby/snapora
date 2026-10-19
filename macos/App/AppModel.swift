@@ -106,6 +106,11 @@ final class AppModel: ObservableObject {
             switch action {
             case .recording, .ocr, .scrolling:
                 return
+            case .fullscreen where NSScreen.screens.count > 1:
+                // Several displays: let the user pick one.
+                guard let selection = await SelectionOverlay.present(intent: .screenshot, mode: .display) else { return }
+                try await handle(selection)
+                return
             case .fullscreen, .timedFullscreen:
                 image = try await ScreenCapture.captureMainDisplay(options: options)
             case .previousArea:
@@ -115,22 +120,12 @@ final class AppModel: ObservableObject {
                 }
                 image = try await ScreenCapture.capture(region: area, options: options)
             case .region, .window, .allInOne:
-                let mode: SelectionOverlay.Mode = switch action {
-                case .window: .window
-                case .allInOne: .allInOne
-                default: .region
-                }
-                switch await SelectionOverlay.present(mode: mode) {
-                case .cancelled:
-                    return
-                case .region(let rect):
-                    settings.previousArea = rect
-                    image = try await ScreenCapture.capture(region: rect, options: options)
-                case .display(let rect):
-                    image = try await ScreenCapture.capture(region: rect, options: options)
-                case .window(let id):
-                    image = try await ScreenCapture.capture(windowID: id, options: options)
-                }
+                let mode: SelectionOverlay.Mode = action == .window ? .window : .area
+                let overlayOptions = SelectionOverlay.Options(allowsIntentSwitch: action == .allInOne)
+                guard let selection = await SelectionOverlay.present(intent: .screenshot, mode: mode, options: overlayOptions)
+                else { return }
+                try await handle(selection)
+                return
             }
             try handleCapture(image)
         } catch {
@@ -157,21 +152,43 @@ final class AppModel: ObservableObject {
     }
 
     private func startRecording() async throws {
-        let source: RecordingConfig.Source
-        switch await SelectionOverlay.present(mode: .allInOne) {
-        case .cancelled: return
-        case .region(let rect):
-            settings.previousArea = rect
-            source = .region(rect)
-        case .display(let rect): source = .region(rect)
-        case .window(let id): source = .window(id)
+        guard let selection = await SelectionOverlay.present(intent: .recording, mode: .area) else { return }
+        try await handle(selection)
+    }
+
+    /// Captures or records whatever the overlay returned.
+    private func handle(_ selection: SelectionOverlay.Selection) async throws {
+        let options = settings.captureOptions
+        switch selection.intent {
+        case .screenshot:
+            let image: CGImage
+            switch selection.target {
+            case .region(let rect):
+                settings.previousArea = rect
+                image = try await ScreenCapture.capture(region: rect, options: options)
+            case .display(let rect):
+                image = try await ScreenCapture.capture(region: rect, options: options)
+            case .window(let id):
+                image = try await ScreenCapture.capture(windowID: id, options: options)
+            }
+            try handleCapture(image)
+        case .recording:
+            let source: RecordingConfig.Source
+            switch selection.target {
+            case .region(let rect):
+                settings.previousArea = rect
+                source = .region(rect)
+            case .display(let rect): source = .region(rect)
+            case .window(let id): source = .window(id)
+            }
+            isCapturing = false
+            await recording.start(config: settings.recordingConfig(source: source), template: settings.fileNameTemplate)
         }
-        isCapturing = false
-        await recording.start(config: settings.recordingConfig(source: source), template: settings.fileNameTemplate)
     }
 
     private func scrollingCapture() async throws {
-        guard case .region(let rect) = await SelectionOverlay.present(mode: .region) else { return }
+        guard let selection = await SelectionOverlay.present(intent: .screenshot, mode: .area, options: .init(showsBar: false)),
+              case .region(let rect) = selection.target else { return }
         guard let result = try await ScrollingCapture.run(region: rect, options: settings.captureOptions) else { return }
         try handleCapture(result.image)
         if result.uncertainJoins > 0 {
@@ -180,7 +197,8 @@ final class AppModel: ObservableObject {
     }
 
     private func recognizeText() async throws {
-        guard case .region(let rect) = await SelectionOverlay.present(mode: .region) else { return }
+        guard let selection = await SelectionOverlay.present(intent: .screenshot, mode: .area, options: .init(showsBar: false)),
+              case .region(let rect) = selection.target else { return }
         let image = try await ScreenCapture.capture(region: rect, options: settings.captureOptions)
         let text = try await TextRecognizer.recognize(image)
         NSPasteboard.general.clearContents()
