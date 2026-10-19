@@ -2,7 +2,7 @@ import AppKit
 import OSLog
 
 enum CaptureAction {
-    case fullscreen, region, window, previousArea, allInOne, timedFullscreen
+    case fullscreen, region, window, previousArea, allInOne, timedFullscreen, recording
 }
 
 @MainActor
@@ -14,12 +14,15 @@ final class AppModel: ObservableObject {
 
     let settings = Settings.shared
     let quickAccess: QuickAccessController
+    let recording = RecordingController()
     private var timerTask: Task<Void, Never>?
     private let log = Logger(subsystem: "com.snapora.app", category: "capture")
 
     init() {
         quickAccess = QuickAccessController(settings: Settings.shared)
         registerHotKeys()
+        recording.onFinished = { [weak self] url in self?.handleRecording(url) }
+        recording.onError = { [weak self] message in self?.statusMessage = message }
     }
 
     // MARK: - Permissions
@@ -35,7 +38,11 @@ final class AppModel: ObservableObject {
     // MARK: - Capture
 
     func perform(_ action: CaptureAction) {
-        guard !isCapturing else { return }
+        if action == .recording, recording.isActive {
+            Task { await recording.stop() }
+            return
+        }
+        guard !isCapturing, !recording.isActive else { return }
         hasScreenPermission = Permissions.hasScreenRecording
         guard hasScreenPermission else {
             requestPermission()
@@ -77,8 +84,14 @@ final class AppModel: ObservableObject {
     private func run(_ action: CaptureAction) async {
         let options = settings.captureOptions
         do {
+            if action == .recording {
+                try await startRecording()
+                return
+            }
             let image: CGImage
             switch action {
+            case .recording:
+                return
             case .fullscreen, .timedFullscreen:
                 image = try await ScreenCapture.captureMainDisplay(options: options)
             case .previousArea:
@@ -128,6 +141,33 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private func startRecording() async throws {
+        let source: RecordingConfig.Source
+        switch await SelectionOverlay.present(mode: .allInOne) {
+        case .cancelled: return
+        case .region(let rect):
+            settings.previousArea = rect
+            source = .region(rect)
+        case .display(let rect): source = .region(rect)
+        case .window(let id): source = .window(id)
+        }
+        isCapturing = false
+        await recording.start(config: settings.recordingConfig(source: source), template: settings.fileNameTemplate)
+    }
+
+    private func handleRecording(_ url: URL) {
+        do {
+            let saved = try QuickAccessController.copyFile(
+                CaptureItem(id: UUID(), url: url, pixelSize: .zero, createdAt: Date()),
+                to: settings.saveDirectory
+            )
+            statusMessage = "Saved \(saved.lastPathComponent)"
+            NSWorkspace.shared.activateFileViewerSelecting([saved])
+        } catch {
+            statusMessage = "Recording saved in Snapora's library; copy failed: \(error.localizedDescription)"
+        }
+    }
+
     func reopenLastCapture() {
         guard let item = CaptureStore.shared.lastCapture,
               FileManager.default.fileExists(atPath: item.url.path) else {
@@ -146,6 +186,7 @@ final class AppModel: ObservableObject {
             (.fullscreen, .fullscreen),
             (.region, .region),
             (.previousArea, .previousArea),
+            (.recording, .recording),
         ]
         var conflicts: [String] = []
         for (shortcut, action) in bindings {

@@ -32,7 +32,11 @@ struct MenuContent: View {
                 Button("Self-Timer (\(settings.timerSeconds)s)") { model.perform(.timedFullscreen) }
             }
         }
-        .disabled(model.isCapturing)
+        .disabled(model.isCapturing || model.recording.isActive)
+
+        Divider()
+
+        RecordingMenu(model: model, recording: model.recording, settings: settings)
 
         Button("Reopen Last Capture") { model.reopenLastCapture() }
 
@@ -65,5 +69,37 @@ struct MenuContent: View {
         Text("Snapora core \(coreVersion())")
         Button("Quit Snapora") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q")
+    }
+}
+
+struct RecordingMenu: View {
+    let model: AppModel
+    @ObservedObject var recording: RecordingController
+    @ObservedObject var settings: Settings
+
+    var body: some View {
+        switch recording.phase {
+        case .idle:
+            Button("Record Screen…  ⌥⇧5") { model.perform(.recording) }
+                .disabled(model.isCapturing)
+            Menu("Recording Options") {
+                Picker("Frame Rate", selection: $settings.recordFPS) {
+                    Text("30 fps").tag(30)
+                    Text("60 fps").tag(60)
+                }
+                Toggle("Record System Audio", isOn: $settings.recordSystemAudio)
+                Toggle("Record Microphone", isOn: $settings.recordMicrophone)
+                Toggle("Show Cursor", isOn: $settings.recordShowsCursor)
+                Toggle("HEVC (smaller files)", isOn: $settings.recordHEVC)
+            }
+        case .starting:
+            Text("Starting recording…")
+        case .recording, .paused:
+            Button("Stop Recording  ⌥⇧5") { Task { await recording.stop() } }
+            Button(recording.phase == .paused ? "Resume Recording" : "Pause Recording") { recording.togglePause() }
+            Button("Discard Recording") { Task { await recording.cancel() } }
+        case .stopping:
+            Text("Saving recording…")
+        }
     }
 }

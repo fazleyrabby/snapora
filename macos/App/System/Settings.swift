@@ -27,6 +27,12 @@ final class Settings: ObservableObject {
     /// Seconds before a Quick Access card closes itself; 0 = never.
     @Published var quickAccessAutoCloseSeconds: Int { didSet { defaults.set(quickAccessAutoCloseSeconds, forKey: "quickAccessAutoCloseSeconds") } }
 
+    @Published var recordFPS: Int { didSet { defaults.set(recordFPS, forKey: "recordFPS") } }
+    @Published var recordSystemAudio: Bool { didSet { defaults.set(recordSystemAudio, forKey: "recordSystemAudio") } }
+    @Published var recordMicrophone: Bool { didSet { defaults.set(recordMicrophone, forKey: "recordMicrophone") } }
+    @Published var recordShowsCursor: Bool { didSet { defaults.set(recordShowsCursor, forKey: "recordShowsCursor") } }
+    @Published var recordHEVC: Bool { didSet { defaults.set(recordHEVC, forKey: "recordHEVC") } }
+
     /// Last region in global capture coordinates, for "Capture Previous Area".
     var previousArea: CGRect? {
         get { defaults.string(forKey: "previousArea").map { NSRectFromString($0) }.flatMap { $0.isEmpty ? nil : $0 } }
@@ -34,18 +40,38 @@ final class Settings: ObservableObject {
     }
 
     private init() {
-        defaults.register(defaults: ["includeWindowShadow": true, "timerSeconds": 5])
+        defaults.register(defaults: [
+            "includeWindowShadow": true, "timerSeconds": 5,
+            "recordFPS": 60, "recordShowsCursor": true,
+        ])
         hideDesktopIcons = defaults.bool(forKey: "hideDesktopIcons")
         includeWindowShadow = defaults.bool(forKey: "includeWindowShadow")
         timerSeconds = defaults.integer(forKey: "timerSeconds")
         fileNameTemplate = defaults.string(forKey: "fileNameTemplate") ?? defaultFileNameTemplate()
         afterCapture = defaults.string(forKey: "afterCapture").flatMap(AfterCaptureAction.init(rawValue:)) ?? .quickAccess
         quickAccessAutoCloseSeconds = defaults.integer(forKey: "quickAccessAutoCloseSeconds")
+        recordFPS = defaults.integer(forKey: "recordFPS")
+        recordSystemAudio = defaults.bool(forKey: "recordSystemAudio")
+        recordMicrophone = defaults.bool(forKey: "recordMicrophone")
+        recordShowsCursor = defaults.bool(forKey: "recordShowsCursor")
+        recordHEVC = defaults.bool(forKey: "recordHEVC")
         saveDirectory = defaults.string(forKey: "saveDirectory").map { URL(fileURLWithPath: $0) }
             ?? ImageExporter.defaultDirectory
     }
 
     var captureOptions: CaptureOptions {
         CaptureOptions(hideDesktopIcons: hideDesktopIcons, includeWindowShadow: includeWindowShadow)
+    }
+
+    func recordingConfig(source: RecordingConfig.Source) -> RecordingConfig {
+        RecordingConfig(
+            source: source,
+            framesPerSecond: recordFPS,
+            showsCursor: recordShowsCursor,
+            systemAudio: recordSystemAudio,
+            microphone: recordMicrophone,
+            codec: recordHEVC ? .hevc : .h264,
+            hideDesktopIcons: hideDesktopIcons
+        )
     }
 }
