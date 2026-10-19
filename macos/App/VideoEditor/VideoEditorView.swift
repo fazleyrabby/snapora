@@ -129,7 +129,7 @@ struct VideoEditorView: View {
                     Text("480 px").tag(480)
                     Text("640 px").tag(640)
                     Text("800 px").tag(800)
-                    Text("Original").tag(0)
+                    Text("Original (max 1280 px)").tag(0)
                 }
             } label: {
                 Text("GIF: \(model.gifFPS) fps, \(model.gifMaxWidth == 0 ? "original" : "\(model.gifMaxWidth) px")")

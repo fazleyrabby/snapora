@@ -4,6 +4,27 @@ Local-first screenshot and screen-recording app for macOS, inspired by
 CleanShot X workflows. Rust core + Swift/SwiftUI/AppKit shell. See
 [spec.md](spec.md) for the product and engineering plan.
 
+## Features
+
+| Shortcut | Action |
+|---|---|
+| ⌥⇧1 | All-in-One (drag = region, click = window, Return = display) |
+| ⌥⇧2 | Capture window |
+| ⌥⇧3 | Capture fullscreen |
+| ⌥⇧4 | Capture area (Space toggles window picking) |
+| ⌥⇧5 | Start / stop screen recording |
+| ⌥⇧6 | Capture previous area |
+| ⌥⇧O | Capture text (OCR) |
+
+- Quick Access preview: copy, save, drag, edit, pin
+- Image editor: arrows, shapes, text, pen, counters, highlight, spotlight,
+  blur, pixelate, redact, crop, rotate, background styling, undo/redo
+- Screen recording to MP4 (H.264/HEVC) with pause, system audio, microphone
+- Video editor: trim, crop, mute, MP4 and GIF export
+- Scrolling capture, self-timer, hide desktop icons
+- Capture history with search and favorites; pinned screenshots
+- Everything stays local; nothing is uploaded
+
 ## Requirements
 
 - macOS 14 Sonoma or later, Apple Silicon
@@ -14,6 +35,7 @@ CleanShot X workflows. Rust core + Swift/SwiftUI/AppKit shell. See
 
 ```bash
 make test     # Rust unit tests
+make dmg      # build/Snapora-<version>.dmg (signs/notarizes if configured)
 make debug    # build/debug/Snapora.app
 make run      # build debug and launch
 make app      # build/release/Snapora.app
@@ -52,3 +74,11 @@ crates/uniffi-bindgen  bindgen CLI used by scripts/build-rust.sh
 macos/                 SwiftPM package for the macOS app
 scripts/               build scripts
 ```
+
+## Known limitations
+
+- Not yet verified on real hardware; see [docs/TESTING.md](docs/TESTING.md).
+- System audio and microphone are separate audio tracks (not mixed).
+- Scrolling capture is manual (you scroll); it flags uncertain joins.
+- GIF export is capped at 1280 px wide and 600 frames.
+- Only solid Redact is fully irreversible; blur/pixelate are cosmetic.

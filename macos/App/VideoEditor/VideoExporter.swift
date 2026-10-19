@@ -11,6 +11,10 @@ enum VideoExporter {
         to url: URL,
         progress: @escaping (Double) -> Void
     ) async throws {
+        if let src = (asset as? AVURLAsset)?.url,
+           src.standardizedFileURL.resolvingSymlinksInPath() == url.standardizedFileURL.resolvingSymlinksInPath() {
+            throw VideoEditError.destinationIsSource
+        }
         let (sourceTrack, geometry) = try await VideoGeometry.load(from: asset)
 
         let composition = AVMutableComposition()
@@ -49,22 +53,35 @@ enum VideoExporter {
         }
 
         let session = try makeSession(for: composition)
-        session.outputURL = url
+        // Export to a temp file next to the destination, then swap it in atomically;
+        // an existing file at `url` is never deleted up front.
+        let temp = url.deletingLastPathComponent()
+            .appendingPathComponent(".snapora-\(UUID().uuidString).mp4")
+        session.outputURL = temp
         session.outputFileType = .mp4
         session.videoComposition = videoComposition
         session.shouldOptimizeForNetworkUse = true
-        try? FileManager.default.removeItem(at: url)
 
         await run(session, progress: progress)
 
         switch session.status {
         case .completed:
+            do {
+                if FileManager.default.fileExists(atPath: url.path) {
+                    _ = try FileManager.default.replaceItemAt(url, withItemAt: temp)
+                } else {
+                    try FileManager.default.moveItem(at: temp, to: url)
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: temp)
+                throw VideoEditError.writeFailed
+            }
             progress(1)
         case .cancelled:
-            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: temp)
             throw CancellationError()
         default:
-            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: temp)
             throw VideoEditError.exportFailed(session.error?.localizedDescription ?? "unknown error")
         }
     }

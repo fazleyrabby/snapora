@@ -56,7 +56,9 @@ final class EffectCache {
     private func makePixelate(rect: Rect, block: UInt32) -> CGImage? {
         guard let region = region(for: rect), let sub = source.cropping(to: region) else { return nil }
         let filter = CIFilter.pixellate()
-        filter.inputImage = CIImage(cgImage: sub)
+        // Clamp so partial blocks at the region edges sample real pixels instead of
+        // coming out transparent (which would let the raw source show through).
+        filter.inputImage = CIImage(cgImage: sub).clampedToExtent()
         filter.scale = Float(max(block, 2))
         filter.center = .zero
         guard let out = filter.outputImage else { return nil }
@@ -70,14 +72,16 @@ final class EffectCache {
 ///
 /// Contract: the caller's CTM maps *output pixels* (top-left origin, y down)
 /// to the destination. The renderer applies the source->output transform.
-/// Annotations with id 0 are live drafts: destructive ones render as a dashed
-/// outline instead of running the (costly) effect.
+/// Only when `preview` is true are annotations with id 0 treated as live drafts
+/// (destructive ones render as a dashed outline instead of running the costly
+/// effect). Export never passes `preview`, so destructive kinds always render fully.
 enum AnnotationRenderer {
     static func render(in ctx: CGContext,
                        source: CGImage,
                        annotations: [Annotation],
                        transform: SourceTransform,
-                       cache: EffectCache) {
+                       cache: EffectCache,
+                       preview: Bool = false) {
         ctx.saveGState()
         ctx.concatenate(transform.affine)
         let srcW = CGFloat(source.width), srcH = CGFloat(source.height)
@@ -85,7 +89,7 @@ enum AnnotationRenderer {
 
         drawImage(source, in: CGRect(x: 0, y: 0, width: srcW, height: srcH), ctx: ctx)
         for a in annotations {
-            draw(a, in: ctx, sourceSize: CGSize(width: srcW, height: srcH), cache: cache)
+            draw(a, in: ctx, sourceSize: CGSize(width: srcW, height: srcH), cache: cache, preview: preview)
         }
         ctx.restoreGState()
     }
@@ -110,7 +114,8 @@ enum AnnotationRenderer {
         return CGSize(width: ceil(s.width), height: ceil(s.height))
     }
 
-    static func draw(_ a: Annotation, in ctx: CGContext, sourceSize: CGSize, cache: EffectCache) {
+    static func draw(_ a: Annotation, in ctx: CGContext, sourceSize: CGSize, cache: EffectCache, preview: Bool = false) {
+        let isDraft = preview && a.id == 0
         let style = a.style
         let stroke = color(style.stroke)
         ctx.saveGState()
@@ -183,25 +188,30 @@ enum AnnotationRenderer {
             ctx.fillPath(using: .evenOdd)
 
         case .redact(let r):
-            if a.id == 0 {
+            if isDraft {
                 drawDraftOutline(ctx, rect: r.cgRect.standardized, tint: stroke)
             } else {
-                // Always fully opaque: redaction must never leak what is beneath.
+                // Always fully opaque, pixel-aligned (no antialiased edge that blends
+                // real content), rounded outward so the whole region is covered.
                 ctx.setBlendMode(.normal)
+                ctx.setShouldAntialias(false)
                 ctx.setFillColor(color(style.stroke, alpha: 1))
-                ctx.fill(r.cgRect.standardized)
+                ctx.fill(r.cgRect.standardized.integral)
             }
 
         case .blur(let r, _), .pixelate(let r, _):
-            if a.id == 0 {
+            if isDraft {
                 drawDraftOutline(ctx, rect: r.cgRect.standardized, tint: stroke)
             } else if let region = cache.region(for: r) {
+                // Fail closed: opaque base first, then the effect with `.copy`, so
+                // no source pixel can show through transparent/partial output.
+                ctx.setShouldAntialias(false)
+                ctx.setBlendMode(.normal)
+                ctx.setFillColor(CGColor(gray: 0.5, alpha: 1))
+                ctx.fill(region)
                 if let img = cache.image(for: a.kind) {
+                    ctx.setBlendMode(.copy)
                     drawImage(img, in: region, ctx: ctx)
-                } else {
-                    // Effect failed: fail closed with an opaque fill, never the raw pixels.
-                    ctx.setFillColor(CGColor(gray: 0.2, alpha: 1))
-                    ctx.fill(region)
                 }
             }
         }

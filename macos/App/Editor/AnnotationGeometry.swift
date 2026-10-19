@@ -119,8 +119,18 @@ struct RectHandle: Equatable {
 
 /// Builds the annotation payload for a drag from `start` to `end` (source px).
 enum AnnotationFactory {
-    static let blurRadius = 12.0
-    static let pixelateBlock: UInt32 = 12
+    /// Blur radius scales with the region so it stays strong on Retina/6K captures.
+    static func blurRadius(for rect: Rect) -> Double {
+        let r = rect.cgRect.standardized
+        let m = Double(min(r.width, r.height))
+        return min(max(16, m / 4), 96)
+    }
+
+    static func pixelateBlock(for rect: Rect) -> UInt32 {
+        let r = rect.cgRect.standardized
+        let m = Double(min(r.width, r.height))
+        return UInt32(min(max(16, Int(m / 6)), 128))
+    }
 
     static func kind(for tool: EditorTool, start: CGPoint, end: CGPoint, points: [CGPoint]) -> AnnotationKind? {
         let rect = Rect(CGRect(from: start, to: end))
@@ -132,8 +142,8 @@ enum AnnotationFactory {
         case .ellipse where !tooSmall: return .ellipse(rect: rect)
         case .highlight where !tooSmall: return .highlight(rect: rect)
         case .spotlight where !tooSmall: return .spotlight(rect: rect)
-        case .blur where !tooSmall: return .blur(rect: rect, radius: blurRadius)
-        case .pixelate where !tooSmall: return .pixelate(rect: rect, blockSize: pixelateBlock)
+        case .blur where !tooSmall: return .blur(rect: rect, radius: blurRadius(for: rect))
+        case .pixelate where !tooSmall: return .pixelate(rect: rect, blockSize: pixelateBlock(for: rect))
         case .redact where !tooSmall: return .redact(rect: rect)
         case .freehand where points.count >= 2: return .freehand(points: points.map(EditorPoint.init))
         default: return nil

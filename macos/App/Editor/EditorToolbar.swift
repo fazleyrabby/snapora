@@ -48,7 +48,8 @@ private struct ToolRow: View {
                         .background(model.tool == tool ? Color.accentColor.opacity(0.28) : .clear, in: RoundedRectangle(cornerRadius: 5))
                 }
                 .buttonStyle(.plain)
-                .help("\(tool.title) (\(String(tool.shortcut).uppercased()))")
+                .help("\(tool.title) (\(String(tool.shortcut).uppercased()))"
+                      + ([.blur, .pixelate].contains(tool) ? "\nUse Redact for sensitive data — only solid redaction is fully irreversible." : ""))
             }
             Divider().frame(height: 18)
             Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward") }

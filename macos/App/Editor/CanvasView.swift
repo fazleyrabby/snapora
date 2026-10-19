@@ -213,11 +213,11 @@ final class CanvasView: NSView, NSTextFieldDelegate {
             BackgroundRenderer.draw(in: ctx, style: model.displayBackground, layout: bgLayout,
                                     contentSize: transform.outputSize) { c in
                 AnnotationRenderer.render(in: c, source: model.source, annotations: annotations,
-                                          transform: transform, cache: model.effects)
+                                          transform: transform, cache: model.effects, preview: true)
             }
         } else {
             AnnotationRenderer.render(in: ctx, source: model.source, annotations: annotations,
-                                      transform: transform, cache: model.effects)
+                                      transform: transform, cache: model.effects, preview: true)
         }
         ctx.restoreGState()
 

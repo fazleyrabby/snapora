@@ -10,9 +10,26 @@ struct GIFOptions: Equatable {
     var maxWidth: Int? = 640
 }
 
-/// Writes an animated GIF by stepping through a time range one frame at a
-/// time, so memory use stays bounded regardless of clip length.
+/// Result of a GIF export; `reduced` is true when the frame rate or width was
+/// lowered to stay within the work caps.
+struct GIFExportInfo: Equatable {
+    var requestedFPS: Int
+    var effectiveFPS: Double
+    var frameCount: Int
+    var outputWidthCap: Int
+    var reduced: Bool { effectiveFPS < Double(requestedFPS) - 0.01 }
+}
+
+/// Writes an animated GIF by stepping through a time range one frame at a time.
+///
+/// Memory bound: ImageIO's `CGImageDestination` retains every added frame until
+/// `Finalize`, so peak memory is roughly `frames x width x height x 4` bytes.
+/// That is capped by `maxFrames` frames and `maxOutputWidth` pixels of width.
 enum GIFExporter {
+    static let maxFrames = 600
+    static let maxOutputWidth = 1280
+
+    @discardableResult
     static func export(
         asset: AVAsset,
         timeRange: CMTimeRange,
@@ -20,10 +37,13 @@ enum GIFExporter {
         options: GIFOptions,
         to url: URL,
         progress: @escaping (Double) -> Void
-    ) async throws {
-        let fps = Double(max(1, options.fps))
+    ) async throws -> GIFExportInfo {
+        let requested = max(1, options.fps)
         let start = timeRange.start.seconds
         let duration = timeRange.duration.seconds
+        var fps = Double(requested)
+        if duration * fps > Double(maxFrames), duration > 0 { fps = Double(maxFrames) / duration }
+        let widthCap = min(options.maxWidth.flatMap { $0 > 0 ? $0 : nil } ?? maxOutputWidth, maxOutputWidth)
         let count = max(1, Int((duration * fps).rounded(.down)))
         let lastTime = max(start, start + duration - 0.001)
         let times = (0..<count).map {
@@ -56,7 +76,7 @@ enum GIFExporter {
                 try Task.checkCancellation()
                 let image = try result.image
                 try autoreleasepool {
-                    guard let frame = process(image, crop: crop, maxWidth: options.maxWidth) else {
+                    guard let frame = process(image, crop: crop, maxWidth: widthCap) else {
                         throw VideoEditError.frameGenerationFailed
                     }
                     CGImageDestinationAddImage(dest, frame, frameProps)
@@ -70,6 +90,7 @@ enum GIFExporter {
             try? FileManager.default.removeItem(at: url)
             try FileManager.default.moveItem(at: temp, to: url)
             progress(1)
+            return GIFExportInfo(requestedFPS: requested, effectiveFPS: fps, frameCount: count, outputWidthCap: widthCap)
         } catch {
             generator.cancelAllCGImageGeneration()
             try? FileManager.default.removeItem(at: temp)

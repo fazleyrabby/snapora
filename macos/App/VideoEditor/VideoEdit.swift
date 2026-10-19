@@ -18,6 +18,7 @@ enum VideoEditError: LocalizedError {
     case frameGenerationFailed
     case writeFailed
     case exportFailed(String)
+    case destinationIsSource
 
     var errorDescription: String? {
         switch self {
@@ -28,6 +29,7 @@ enum VideoEditError: LocalizedError {
         case .frameGenerationFailed: "Could not read frames from the video."
         case .writeFailed: "Could not write the output file."
         case .exportFailed(let m): "Export failed: \(m)"
+        case .destinationIsSource: "The export destination is the original recording. Choose a different file name so the original is not overwritten."
         }
     }
 }

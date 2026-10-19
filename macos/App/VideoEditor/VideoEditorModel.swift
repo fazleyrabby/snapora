@@ -228,10 +228,16 @@ final class VideoEditorModel: ObservableObject {
         let crop = self.crop.map { CropMath.encodable($0, bounds: bounds) }
         let options = GIFOptions(fps: gifFPS, maxWidth: gifMaxWidth == 0 ? nil : gifMaxWidth)
         let asset = self.asset
-        beginExport(label: "Exporting GIF…", dest: dest) { progress in
-            try await GIFExporter.export(
+        beginExport(label: "Exporting GIF…", dest: dest) { [weak self] progress in
+            let info = try await GIFExporter.export(
                 asset: asset, timeRange: range, crop: crop, options: options, to: dest, progress: progress
             )
+            if info.reduced {
+                await MainActor.run {
+                    self?.errorMessage = String(format: "GIF saved. The frame rate was lowered from %d to %.1f fps to keep the clip under %d frames.",
+                                                info.requestedFPS, info.effectiveFPS, GIFExporter.maxFrames)
+                }
+            }
         }
     }
 

@@ -377,13 +377,16 @@ impl ImageDocument {
             doc.validate_crop(&crop)?;
         }
         for (i, a) in doc.annotations.iter().enumerate() {
+            if a.id.0 == 0 {
+                return Err(EditorError::Malformed("annotation id 0 is reserved".into()));
+            }
             validate_annotation(a)?;
             if doc.annotations[..i].iter().any(|b| b.id == a.id) {
                 return Err(EditorError::DuplicateId(a.id));
             }
         }
         let min_next = doc.annotations.iter().map(|a| a.id.0.saturating_add(1)).max().unwrap_or(1);
-        doc.next_id = doc.next_id.max(min_next);
+        doc.next_id = doc.next_id.max(min_next).max(1);
         Ok(doc)
     }
 }
@@ -731,6 +734,19 @@ mod tests {
         let mut d = doc();
         d.crop = Some(Rect::new(0.0, 0.0, 999.0, 10.0));
         assert_eq!(ImageDocument::from_json(&d.to_json().unwrap()), Err(EditorError::InvalidCrop));
+    }
+
+    #[test]
+    fn json_rejects_id_zero_and_fixes_next_id() {
+        let mut d = doc();
+        d.add_annotation(rect_kind(0.0), Style::default()).unwrap();
+        let json = d.to_json().unwrap();
+        let mut v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        v["annotations"][0]["id"] = serde_json::json!(0);
+        assert!(matches!(ImageDocument::from_json(&v.to_string()), Err(EditorError::Malformed(_))));
+        let mut v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        v["next_id"] = serde_json::json!(0);
+        assert!(ImageDocument::from_json(&v.to_string()).unwrap().next_id >= 1);
     }
 
     #[test]

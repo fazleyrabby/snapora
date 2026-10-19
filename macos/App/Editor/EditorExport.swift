@@ -122,6 +122,7 @@ enum EditorExport {
     /// output must be opaque and match the redaction colour.
     private static func verifyRedactions(image: CGImage, document: EditorDocument, annotations: [Annotation], transform: SourceTransform) {
         let redacts = annotations.filter { if case .redact = $0.kind { return true } else { return false } }
+        verifyEffects(image: image, annotations: annotations, transform: transform)
         assert(document.destructiveRegions().count == annotations.filter { $0.kind.isDestructive }.count,
                "destructiveRegions() disagrees with annotation list")
         let outBounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
@@ -139,6 +140,29 @@ enum EditorExport {
                 return px.a == 255 && close(px.r, want.r) && close(px.g, want.g) && close(px.b, want.b)
             }
             assert(ok, "Redacted region is not opaque in exported pixels")
+        }
+    }
+
+    /// Debug-only: every sampled pixel inside a blur/pixelate region must be opaque.
+    private static func verifyEffects(image: CGImage, annotations: [Annotation], transform: SourceTransform) {
+        let outBounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        for a in annotations {
+            let r: Rect
+            switch a.kind {
+            case .blur(let rr, _), .pixelate(let rr, _): r = rr
+            default: continue
+            }
+            let region = transform.toOutput(r.cgRect.standardized).intersection(outBounds)
+            if region.isNull || region.width < 2 || region.height < 2 { continue }
+            for fx in [0.02, 0.5, 0.98] as [CGFloat] {
+                for fy in [0.02, 0.5, 0.98] as [CGFloat] {
+                    let p = CGPoint(x: min(region.minX + region.width * fx, region.maxX - 1),
+                                    y: min(region.minY + region.height * fy, region.maxY - 1))
+                    if let px = pixel(image, at: p) {
+                        assert(px.a == 255, "Blur/pixelate region contains non-opaque pixels")
+                    }
+                }
+            }
         }
     }
 
